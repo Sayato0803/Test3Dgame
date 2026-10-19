@@ -10,12 +10,12 @@ namespace GridBattle
     /// </summary>
     public class GridSystem : MonoBehaviour
     {
+        [SerializeField] private Material _tileMaterial;
         [SerializeField] private int _size = 10;
         [SerializeField] private float _cellSize = 1f;
         [Tooltip("Layer của collider bàn. Tạo layer này trong Tags & Layers; không có thì dùng Default.")]
         [SerializeField] private string _gridLayerName = "Grid";
-        [SerializeField] private Color _colorA = new(0.30f, 0.34f, 0.40f);
-        [SerializeField] private Color _colorB = new(0.24f, 0.28f, 0.34f);
+        [SerializeField] private Color _colorB = Color.white;
 
         private Cell[,] _cells;
         private Renderer[,] _tiles;
@@ -48,6 +48,8 @@ namespace GridBattle
         public bool InBounds(Vector2Int c) => c.x >= 0 && c.y >= 0 && c.x < _size && c.y < _size;
 
         public Cell GetCell(Vector2Int c) => InBounds(c) ? _cells[c.x, c.y] : null;
+
+
 
         /// <summary>Điểm world (vd hit.point) -> ô. Trả false nếu nằm ngoài bàn.</summary>
         public bool TryWorldToCell(Vector3 world, out Vector2Int coord)
@@ -119,8 +121,7 @@ namespace GridBattle
             if (InBounds(c)) ApplyColor(_tiles[c.x, c.y], BaseColor(c));
         }
 
-        private Color BaseColor(Vector2Int c) => (c.x + c.y) % 2 == 0 ? _colorA : _colorB;
-
+        private Color BaseColor(Vector2Int c) =>  _colorB;
         private void CreateCollider()
         {
             var go = new GameObject("GridCollider");
@@ -148,12 +149,13 @@ namespace GridBattle
                     var c = new Vector2Int(x, y);
                     GameObject tile = GameObject.CreatePrimitive(PrimitiveType.Quad);
                     tile.name = $"Tile_{x}_{y}";
-                    Destroy(tile.GetComponent<Collider>()); // chỉ collider bàn được nhận raycast
+                    Destroy(tile.GetComponent<Collider>());
                     tile.transform.SetParent(root, true);
                     tile.transform.position = CellToWorld(c) + Vector3.up * 0.011f;
-                    tile.transform.rotation = Quaternion.Euler(90f, 0f, 0f); // Quad mặc định nhìn -Z, xoay để ngửa lên
-                    tile.transform.localScale = Vector3.one * (_cellSize * 0.95f); // chừa khe hở làm đường lưới
-
+                    tile.transform.rotation = Quaternion.Euler(90f, 0f, 0f); 
+                    tile.transform.localScale = Vector3.one * (_cellSize * 0.95f); 
+                    
+                    if (_tileMaterial != null) tile.GetComponent<Renderer>().sharedMaterial = _tileMaterial;
                     _tiles[x, y] = tile.GetComponent<Renderer>();
                     ApplyColor(_tiles[x, y], BaseColor(c));
                 }

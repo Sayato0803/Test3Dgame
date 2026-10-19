@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using Unity.InferenceEngine;
+using UnityEditorInternal;
 using UnityEngine;
 
 namespace GridBattle
@@ -11,7 +13,8 @@ namespace GridBattle
     /// </summary>
     public class GridPlacer : MonoBehaviour
     {
-        [SerializeField] private Camera _camera;
+        [SerializeField] private Camera[] _camera = new Camera[5];
+        [SerializeField] private int _startCameraIndex = 0;
         [Tooltip("Để trống = tự tìm mọi GridSystem trong scene.")]
         [SerializeField] private GridSystem[] _grids;
         [Tooltip("Chỉ chọn layer Grid để quân/đạn không chặn raycast.")]
@@ -28,6 +31,10 @@ namespace GridBattle
         [SerializeField] private Color _validColor = new(0.3f, 0.9f, 0.4f);
         [SerializeField] private Color _invalidColor = new(0.95f, 0.25f, 0.25f);
 
+        private int _overViewCam = 2;
+        private int _cameraIndex;
+        public Camera ActiveCam => _camera[_cameraIndex];
+
         private GridUnit _dragging;
         private bool _draggingNew;
         private GridSystem _hoverGrid;
@@ -36,7 +43,7 @@ namespace GridBattle
 
         private void Awake()
         {
-            if (_camera == null) _camera = Camera.main;
+            SwitchCamera(_startCameraIndex);
             if (_grids == null || _grids.Length == 0)
                 _grids = FindObjectsByType<GridSystem>(FindObjectsSortMode.None);
         }
@@ -61,11 +68,44 @@ namespace GridBattle
             }
         }
 
+        public void SwitchCamera(int index)
+        {
+            if (index < 0 || index >= _camera.Length || _camera[index] == null) return;
+
+            for (int i = 0; i < _camera.Length; i++)
+                if (_camera[i] != null)
+                    _camera[i].gameObject.SetActive(i == index);
+
+            _cameraIndex = index;
+            if (index == _overViewCam && _dragging != null) CancelDrag();
+        }
+
         private void LogPlaced(Cell cell, GameObject unit) => Debug.Log($"[Grid] Đặt {unit.name} vào ô {cell.Coord}");
         private void LogRemoved(Cell cell, GameObject unit) => Debug.Log($"[Grid] {unit.name} rời ô {cell.Coord}");
 
         private void Update()
         {
+            if (Input.GetKeyDown(KeyCode.Alpha1)) SwitchCamera(0);
+            if (Input.GetKeyDown(KeyCode.Alpha2)) SwitchCamera(1);
+            if (Input.GetKeyDown(KeyCode.Alpha3)) SwitchCamera(2);
+            if (Input.GetKeyDown(KeyCode.Alpha4)) SwitchCamera(3);
+            if (Input.GetKeyDown(KeyCode.Alpha5)) SwitchCamera(4);
+
+            float scroll = Input.mouseScrollDelta.y;
+            if (scroll != 0)
+            {
+                if(_dragging == null)
+                {
+                    Camera cam = ActiveCam;
+                    cam.fieldOfView = Mathf.Clamp(cam.fieldOfView - scroll *5f, 20f, 70f);
+                }
+                else
+                {
+                    _dragging.transform.Rotate(0,Mathf.Sign(scroll)*90f,0,Space.World);
+                }
+                
+            }
+
             ClearHover();
             bool overCell = TryGetHoveredCell(out GridSystem grid, out Vector2Int coord);
 
@@ -105,13 +145,14 @@ namespace GridBattle
             bool drop = _draggingNew ? Input.GetMouseButtonDown(0) : Input.GetMouseButtonUp(0);
             if (!drop) return;
 
-            if (valid) grid.Place(_dragging, coord);
+            if (valid && _cameraIndex != _overViewCam) grid.Place(_dragging, coord);
             else
             {
                 CancelDrag();
                 return;
             }
             _dragging = null;
+
         }
 
         private void CancelDrag()
@@ -119,6 +160,7 @@ namespace GridBattle
             if (_draggingNew) Destroy(_dragging.gameObject);
             else _dragging.transform.position = _dragging.Grid.CellToWorld(_dragging.Coord); // về chỗ cũ
             _dragging = null;
+            
         }
 
         // ---------------- Raycast ----------------
@@ -129,7 +171,7 @@ namespace GridBattle
             coord = default;
             if (MouseOverUi()) return false;
 
-            Ray ray = _camera.ScreenPointToRay(Input.mousePosition);
+            Ray ray = ActiveCam.ScreenPointToRay(Input.mousePosition);
             if (!Physics.Raycast(ray, out RaycastHit hit, 500f, _gridMask)) return false;
 
             grid = hit.collider.GetComponentInParent<GridSystem>();
@@ -139,7 +181,7 @@ namespace GridBattle
         /// <summary>Khi chuột ra ngoài bàn, quân vẫn đi theo chuột trên mặt phẳng y = 0.</summary>
         private Vector3 MouseOnGround()
         {
-            Ray ray = _camera.ScreenPointToRay(Input.mousePosition);
+            Ray ray = ActiveCam.ScreenPointToRay(Input.mousePosition);
             var ground = new Plane(Vector3.up, Vector3.zero);
             return ground.Raycast(ray, out float d) ? ray.GetPoint(d) : _dragging.transform.position;
         }
@@ -181,7 +223,7 @@ namespace GridBattle
         private bool MouseOverUi()
         {
             Vector2 m = Input.mousePosition;
-            m.y = Screen.height - m.y; // OnGUI tính y từ trên xuống
+            m.y = Screen.height - m.y; 
             foreach (Rect r in _uiRects)
                 if (r.Contains(m)) return true;
             return false;
@@ -193,6 +235,10 @@ namespace GridBattle
             if (model != null)
             {
                 go = Instantiate(model);
+                if(_cameraIndex == 3 || _cameraIndex == 4)
+                {
+                    go.transform.rotation = Quaternion.Euler(0,180,0);
+                }
             }
             else
             {
@@ -212,7 +258,7 @@ namespace GridBattle
 
         private Vector3 MouseOnGroundOrOrigin()
         {
-            Ray ray = _camera.ScreenPointToRay(Input.mousePosition);
+            Ray ray = ActiveCam.ScreenPointToRay(Input.mousePosition);
             var ground = new Plane(Vector3.up, Vector3.zero);
             return ground.Raycast(ray, out float d) ? ray.GetPoint(d) : Vector3.zero;
         }
