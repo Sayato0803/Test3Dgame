@@ -1,26 +1,18 @@
 using System.Collections.Generic;
-using Unity.InferenceEngine;
-using UnityEditorInternal;
 using UnityEngine;
 
 namespace GridBattle
 {
-    /// <summary>
-    /// Input đặt quân kiểu TFT:
-    /// - Bấm nút King/Knight/Mage -> quân mới dính vào chuột -> click 1 ô để thả.
-    /// - Nhấn giữ quân đang ở trên bàn -> kéo -> nhả chuột để thả.
-    /// - Thả vào ô không hợp lệ: quân cũ về chỗ cũ, quân mới bị huỷ. Esc / chuột phải = huỷ.
-    /// </summary>
+
     public class GridPlacer : MonoBehaviour
     {
         [SerializeField] private Camera[] _camera = new Camera[5];
-        [SerializeField] private int _startCameraIndex = 0;
+        [SerializeField] private int _startCameraIndex;
         [Tooltip("Để trống = tự tìm mọi GridSystem trong scene.")]
         [SerializeField] private GridSystem[] _grids;
         [Tooltip("Chỉ chọn layer Grid để quân/đạn không chặn raycast.")]
         [SerializeField] private LayerMask _gridMask = ~0;
 
-        [Header("Model tạm (để trống = dùng khối primitive)")]
         [SerializeField] private GameObject _kingModel;
         [SerializeField] private GameObject _knightModel;
         [SerializeField] private GameObject _mageModel;
@@ -31,14 +23,18 @@ namespace GridBattle
         [SerializeField] private Color _validColor = new(0.3f, 0.9f, 0.4f);
         [SerializeField] private Color _invalidColor = new(0.95f, 0.25f, 0.25f);
 
-        private int _overViewCam = 2;
+        [SerializeField] private int _mageRange = 4;
+        [SerializeField] private int _knightRange = 3;
+        [SerializeField] private Color _previewAttackColor = new(0.55f, 0.8f, 1f, 0.4f);
+        
+        private readonly int _overViewCam = 2;
         private int _cameraIndex;
-        public Camera ActiveCam => _camera[_cameraIndex];
+        private Camera ActiveCam => _camera[_cameraIndex];
 
         private GridUnit _dragging;
         private bool _draggingNew;
         private GridSystem _hoverGrid;
-        private Vector2Int _hoverCoord;
+        private readonly List<Vector2Int> _hoverCoords = new();
         private readonly List<Rect> _uiRects = new();
 
         private void Awake()
@@ -68,7 +64,7 @@ namespace GridBattle
             }
         }
 
-        public void SwitchCamera(int index)
+        private void SwitchCamera(int index)
         {
             if (index < 0 || index >= _camera.Length || _camera[index] == null) return;
 
@@ -77,7 +73,10 @@ namespace GridBattle
                     _camera[i].gameObject.SetActive(i == index);
 
             _cameraIndex = index;
-            if (index == _overViewCam && _dragging != null) CancelDrag();
+            if (index == _overViewCam && _dragging != null){
+                CancelDrag(); 
+                ClearHover();
+            }
         }
 
         private void LogPlaced(Cell cell, GameObject unit) => Debug.Log($"[Grid] Đặt {unit.name} vào ô {cell.Coord}");
@@ -139,7 +138,12 @@ namespace GridBattle
                 1f - Mathf.Exp(-20f * Time.deltaTime));
 
             bool valid = overCell && grid.CanPlace(_dragging, coord);
-            if (overCell) SetHover(grid, coord, valid ? _validColor : _invalidColor);
+            if (overCell)
+            {
+                int range = RangeOf(_dragging.Kind);
+                if (valid && range > 0) ShowAttackPreview(grid, coord, FacingStep(_dragging.transform), range);
+                else SetHover(grid, coord, valid ? _validColor : _invalidColor);
+            }
 
             // Quân mới: click để thả (lần nhả chuột đầu tiên là cú bấm nút). Quân cũ: nhả chuột để thả.
             bool drop = _draggingNew ? Input.GetMouseButtonDown(0) : Input.GetMouseButtonUp(0);
@@ -189,14 +193,42 @@ namespace GridBattle
         private void SetHover(GridSystem grid, Vector2Int coord, Color color)
         {
             _hoverGrid = grid;
-            _hoverCoord = coord;
+            _hoverCoords.Add(coord);
             grid.SetTileColor(coord, color);
         }
 
         private void ClearHover()
         {
-            if (_hoverGrid != null) _hoverGrid.ResetTileColor(_hoverCoord);
+            if (_hoverGrid != null)
+                foreach (Vector2Int c in _hoverCoords)
+                    _hoverGrid.ResetTileColor(c);
+            _hoverCoords.Clear();
             _hoverGrid = null;
+        }
+        
+        //Preview attack range
+
+        private int RangeOf(UnitKind kind) => kind switch
+        {
+            UnitKind.Mage => _mageRange,
+            UnitKind.Knight => _knightRange,
+            _ => 0
+        };
+
+        private static Vector2Int FacingStep(Transform t)
+        {
+            Vector3 f = t.forward;
+            return new Vector2Int(Mathf.RoundToInt(f.x), Mathf.RoundToInt(f.z));
+        }
+
+        private void ShowAttackPreview(GridSystem grid, Vector2Int origin, Vector2Int step, int range)
+        {
+            for (int i = 0; i < range; i++)
+            {
+                Vector2Int c = origin + step * i;
+                if (grid.GetCell(c) == null) continue;
+                SetHover(grid, c, _previewAttackColor);
+            }
         }
 
         // ---------------- Nút tạm (OnGUI) ----------------

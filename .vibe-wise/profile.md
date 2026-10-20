@@ -20,7 +20,7 @@ Capability goal: Not specified
 ## Preferences
 Checkpoint frequency: Normal
 Question style: Open-ended
-Implementation style: AI writes code
+Implementation style: A mix — AI viết code, learner muốn tự gõ vào project (yêu cầu 2026-10-19)
 
 ## Strong Concepts
 No demonstrated understanding recorded yet.

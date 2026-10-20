@@ -24,6 +24,20 @@ Learner reasoning:
 - Implementation approved & done: Cell.cs, GridUnit.cs, GridSystem.cs, GridPlacer.cs (giao dạng file, không chép vào project). Chưa chạy trong Unity; chỉ type-check bằng stub.
 Needs reinforcement: công thức world <-> cell (mới được giải thích, chưa áp dụng); chưa nối lựa chọn ô-là-GameObject với việc tra cứu theo (x,y); thời điểm kiểm tra phạm vi (lúc đặt vs Battle phase) chưa rõ.
 
+## Preview tầm đánh khi kéo
+Introduced (AI explained):
+- transform.forward là vector hướng trong world; RoundToInt(forward.x/z) -> bước ô (trục + dấu), khử sai số float.
+- Alpha của màu chỉ có tác dụng khi material URP để Surface Type = Transparent.
+Learner reasoning:
+- Lấy ô hover + facing để chọn trục x/z và tính các ô phía trước.
+- Tầm tính từ ô đang đứng (Mage 3, Knight 2 — Knight đổi luật từ 1 ô trước mặt); ô ngoài bàn bỏ qua, xét tiếp; tầm lưu trong GridPlacer.
+- Ban đầu đề xuất cờ _isPreview; sau khi được chỉ ra cờ không cho biết ô nào cần xoá, chọn nhớ danh sách ô đã tô.
+- Ô hover lấy màu preview thay xanh lá.
+- AI đã sửa GridPlacer.cs rồi learner yêu cầu undo; code được gửi trong chat để learner tự gõ vào project (2026-10-19). Trạng thái trong project: chưa có (learner tự áp dụng). AI additions đã duyệt: giữ đỏ khi không hợp lệ, King giữ hover cũ, material Transparent do learner tự chỉnh.
+- (2026-10-20) Learner tự gõ code preview vào project (tầm đổi thành Mage 4, Knight 3). Unity treo do package AI Assistant (Unity.AI.Toolkit), không do script.
+- (2026-10-20) Learner hỏi cơ chế chuột: AI giải thích Input.mousePosition -> ScreenPointToRay -> Raycast collider bàn -> TryWorldToCell; MouseOverUi (lật trục y GUI); state machine _dragging/_draggingNew; spawn từ nút OnGUI; snap/Lerp; Place vs CancelDrag.
+Needs reinforcement: đổi vector hướng -> bước ô (learner nói không biết, mới được giải thích).
+
 ## Pending decision
 Decision: Luật setup — Mage/Knight setup đặt bàn nào; thành phần nào đếm/giới hạn số quân (GridSystem / GridPlacer / quản lý lượt mới).
 Stage: Build checkpoint — awaiting reasoning.

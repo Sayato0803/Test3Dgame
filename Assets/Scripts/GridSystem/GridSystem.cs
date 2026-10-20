@@ -3,11 +3,6 @@ using UnityEngine;
 
 namespace GridBattle
 {
-    /// <summary>
-    /// Một bàn NxN. Lưới do code định nghĩa (tâm bàn = transform.position, cạnh ô = cellSize),
-    /// model bàn làm sau chỉ cần to đúng N * cellSize.
-    /// Giả định bàn nằm ngang và không xoay (công thức đổi toạ độ chỉ dùng phép trừ + chia).
-    /// </summary>
     public class GridSystem : MonoBehaviour
     {
         [SerializeField] private Material _tileMaterial;
@@ -27,9 +22,8 @@ namespace GridBattle
 
         public int Size => _size;
         public float CellSize => _cellSize;
-
-        /// <summary>Góc dưới-trái của bàn: mốc để đổi toạ độ world <-> ô.</summary>
-        public Vector3 Corner => transform.position - new Vector3(_size * _cellSize * 0.5f, 0f, _size * _cellSize * 0.5f);
+        
+        private Vector3 Corner => transform.position - new Vector3(_size * _cellSize * 0.5f, 0f, _size * _cellSize * 0.5f);
 
         private void Awake()
         {
@@ -45,8 +39,7 @@ namespace GridBattle
 
         // ---------------- Toạ độ ----------------
 
-        public bool InBounds(Vector2Int c) => c.x >= 0 && c.y >= 0 && c.x < _size && c.y < _size;
-
+        private bool InBounds(Vector2Int c) => c.x >= 0 && c.y >= 0 && c.x < _size && c.y < _size;
         public Cell GetCell(Vector2Int c) => InBounds(c) ? _cells[c.x, c.y] : null;
 
 
@@ -97,7 +90,7 @@ namespace GridBattle
             return true;
         }
 
-        public void Remove(GridUnit unit)
+        private void Remove(GridUnit unit)
         {
             if (unit.Grid != this) return;
 
@@ -121,7 +114,7 @@ namespace GridBattle
             if (InBounds(c)) ApplyColor(_tiles[c.x, c.y], BaseColor(c));
         }
 
-        private Color BaseColor(Vector2Int c) =>  _colorB;
+        private Color BaseColor(Vector2Int c) => _colorB;
         private void CreateCollider()
         {
             var go = new GameObject("GridCollider");

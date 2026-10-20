@@ -19,13 +19,14 @@ Verified in repo (Assets/):
 - Scripts/ChangeCamera.cs (CameraManager): bật/tắt giữa 2 camera.
 - Models: King.fbx, Knight.fbx, Mage.fbx (đã rig, chưa có Animator Controller), Table.fbx; Prefab/fireball.prefab; Entity/*.prefab.
 - Scenes/SampleScene.unity.
-Grid board: chưa có trong project (bản sample AI viết trước đó đã được gỡ theo yêu cầu).
+Grid board: Cell/GridUnit/GridSystem/GridPlacer đã nằm trong Assets/Scripts/GridSystem/ (verified 2026-10-19).
+Learner tự thêm (verified trong code): khi đang kéo, cuộn chuột xoay quân 90° quanh trục Y; quân spawn ở camera 3/4 xoay 180°; Phases.cs rỗng ở Scripts/Mechanics/Phases/.
 
-## Components (grid, implemented as files — chưa nằm trong project)
+## Components (grid, implemented — trong Assets/Scripts/GridSystem/)
 - Cell.cs: dữ liệu 1 ô (King slot, Attacker slot).
 - GridUnit.cs (AI addition): component trên quân, giữ Kind + ô đang đứng.
 - GridSystem.cs: Cell[,], Corner/cellSize, TryWorldToCell / CellToWorld, CanPlace/Place/Remove, quad mỗi ô, BoxCollider layer Grid, event OnUnitPlaced/OnUnitRemoved.
-- GridPlacer.cs: raycast LayerMask, kéo thả, nút OnGUI tạm, log event.
+- GridPlacer.cs: raycast LayerMask, kéo thả, nút OnGUI tạm, log event; preview tầm đánh khi kéo Mage/Knight: code đã giao trong chat, learner tự áp dụng (chưa xác minh trong repo).
 
 ## Main Flow
 Hiện tại: Input (Space) -> Shoot/MageScript -> spawn fireball -> FireboltBehavior / BulletDeflector.
@@ -42,6 +43,7 @@ Unity 6000.0.75f1, URP 17.0.4, Input System 1.19 (activeInputHandler = Both).
 - Chưa quyết: quân nào được đặt lên bàn nào (King chỉ bàn nhà? Mage/Knight chỉ bàn đối phương?); có đổi chỗ khi thả vào ô có quân không.
 - Chosen (chưa implement): dữ liệu ô là mảng 2D Cell[,] (thay cho ô-là-GameObject); hiển thị trên 1 model bàn; chọn ô bằng Physics.Raycast vào collider bàn.
 - Chosen: lưới 10x10 cạnh s định nghĩa bằng code là source of truth; model bàn làm sau theo kích thước lưới.
+- Chosen (learner): tầm đánh tính từ ô đang đứng theo hướng facing: Mage 3 ô, Knight 2 ô.
 - Chosen: ô vuông; kéo thả kiểu TFT là cơ chế đặt chính; kiểm tra phạm vi + damage ở Battle phase.
 - Chosen (game design): quân đặt trúng ô King đối phương được bonus damage; GridSystem phát/nhận tín hiệu (event).
 - Unknown: cách ô biết toạ độ và tìm ô lân cận; định nghĩa "trống"; hệ thống xử lý riêng là gì.

@@ -17,7 +17,7 @@ public class PlayerShooting : MonoBehaviour
     }
 
     // Hàm bắn đạn cũ của bạn vẫn giữ nguyên
-    public void ShootFirebolt()
+    private void ShootFirebolt()
     {
         // Code lật ngược 180 độ đầu đạn mà bạn đã áp dụng
         GameObject bullet = Instantiate(fireboltPrefab, shootPoint.position, shootPoint.rotation * Quaternion.Euler(0, 180f, 0));
