@@ -148,10 +148,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 653e282dabcb5ab42a86f545f75f424f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _displayName: P1
+  _displayName: P2
   _board: {fileID: 1808965095}
   _opponent: {fileID: 521680125}
-  _cameraIndex: 3
+  _cameraIndex: 0
+  _attackCameraIndex: 3
 --- !u!4 &17331055
 Transform:
   m_ObjectHideFlags: 0
@@ -358,7 +359,8 @@ MonoBehaviour:
   _displayName: P1
   _board: {fileID: 464210284}
   _opponent: {fileID: 17331054}
-  _cameraIndex: 0
+  _cameraIndex: 3
+  _attackCameraIndex: 0
 --- !u!4 &521680126
 Transform:
   m_ObjectHideFlags: 0
