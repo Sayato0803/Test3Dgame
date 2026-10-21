@@ -17,5 +17,11 @@ namespace GridBattle
         public GridSystem Grid { get; internal set; }
         public Vector2Int Coord { get; internal set; }
         public bool IsOnGrid => Grid != null;
+
+        /// <summary>Số ô tầm đánh (tính cả ô đang đứng). GridPlacer gán lúc spawn; King = 0.</summary>
+        public int Range { get; set; }
+
+        /// <summary>Player sở hữu quân; Phases gán khi quân được đặt lần đầu.</summary>
+        public Player Owner { get; internal set; }
     }
 }

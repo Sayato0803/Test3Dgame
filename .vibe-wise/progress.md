@@ -38,7 +38,13 @@ Learner reasoning:
 - (2026-10-20) Learner hỏi cơ chế chuột: AI giải thích Input.mousePosition -> ScreenPointToRay -> Raycast collider bàn -> TryWorldToCell; MouseOverUi (lật trục y GUI); state machine _dragging/_draggingNew; spawn từ nút OnGUI; snap/Lerp; Place vs CancelDrag.
 Needs reinforcement: đổi vector hướng -> bước ô (learner nói không biết, mới được giải thích).
 
-## Pending decision
-Decision: Luật setup — Mage/Knight setup đặt bàn nào; thành phần nào đếm/giới hạn số quân (GridSystem / GridPlacer / quản lý lượt mới).
-Stage: Build checkpoint — awaiting reasoning.
-Offered (chưa duyệt): nâng primitive lên nửa chiều cao; GridPlacer bỏ qua phần tử null trong _grids.
+## Phase / lượt
+Introduced (AI explained): state machine, enum làm trạng thái; options A/B/C (learner xin gợi ý).
+Learner reasoning: tự liệt kê 3 phase Setup/Attack/End; tự mô tả luồng lượt; đặt tính damage ở End; chọn hot-seat sau khi được chỉ ra 1 màn hình không giấu được; chọn A1/B1/C1 (không nêu lý do).
+Bước 1 (khung phase + Player + chặn GridPlacer + Submit/màn che) approved 2026-10-21; code gửi trong chat; sau đó learner yêu cầu AI tự ghi vào nhánh Board-copy (đã ghi, chưa commit). AI additions đã duyệt: đăng ký quân qua OnUnitPlaced, màn che OnGUI, GameOver trong enum, Phases chuyển camera. AI thêm khi viết (báo trong report): nhấc quân ưu tiên quân được phép (King dưới attacker đối thủ), Submit khoá khi đang kéo, nút Submit chặn raycast. Type-check bằng Unity stub (csc, C# 9): pass. Chưa chạy trong Unity.
+- (2026-10-21) Test trong Unity: GridPlacer chưa gán Phases, p2 Display Name sai (AI chỉ ra qua screenshot). Bug thiết kế của AI: Attack dùng camera bàn nhà -> thêm Player.AttackCameraIndex, Attack/End dùng camera đó (approved, ghi vào Board-copy, type-check pass).
+Needs reinforcement: lý do chọn A1/B1/C1 chưa được learner diễn đạt.
+
+- (2026-10-21) Bước 2: learner yêu cầu sửa thẳng (bỏ qua checkpoint). AI tự chọn và ghi vào Board-copy (chưa commit, type-check pass): KingStats component (Health public 10, IsRevealed, SetVisible tắt Renderer con) do Phases AddComponent; AttackRange static (hướng c) dùng chung preview + battle; GridUnit.Range gán lúc spawn; ResolveBattle tính damage + lộ + GameOver; King chết nằm lại, hiện, không nhận thêm damage; RefreshKingVisibility (chủ quân / đã lộ / đã chết / GameOver). Các lựa chọn này là của AI, learner chưa diễn đạt lý do.
+
+Offered trước đó (chưa duyệt): nâng primitive lên nửa chiều cao; GridPlacer bỏ qua phần tử null trong _grids.

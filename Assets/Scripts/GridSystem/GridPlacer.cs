@@ -10,6 +10,8 @@ namespace GridBattle
         [SerializeField] private int _startCameraIndex;
         [Tooltip("Để trống = tự tìm mọi GridSystem trong scene.")]
         [SerializeField] private GridSystem[] _grids;
+        [Tooltip("Để trống = không giới hạn luật (test tự do như trước).")]
+        [SerializeField] private Phases _phases;
         [Tooltip("Chỉ chọn layer Grid để quân/đạn không chặn raycast.")]
         [SerializeField] private LayerMask _gridMask = ~0;
 
@@ -36,6 +38,11 @@ namespace GridBattle
         private GridSystem _hoverGrid;
         private readonly List<Vector2Int> _hoverCoords = new();
         private readonly List<Rect> _uiRects = new();
+
+        public bool IsDragging => _dragging != null;
+
+        // Không có Phases thì nhấc được mọi quân (test tự do).
+        private bool CanPickUp(GridUnit unit) => _phases == null || _phases.CanPickUp(unit);
 
         private void Awake()
         {
@@ -64,7 +71,7 @@ namespace GridBattle
             }
         }
 
-        private void SwitchCamera(int index)
+        public void SwitchCamera(int index)
         {
             if (index < 0 || index >= _camera.Length || _camera[index] == null) return;
 
@@ -90,6 +97,13 @@ namespace GridBattle
             if (Input.GetKeyDown(KeyCode.Alpha4)) SwitchCamera(3);
             if (Input.GetKeyDown(KeyCode.Alpha5)) SwitchCamera(4);
 
+            // Đang che màn hình đổi người: không cho thao tác gì.
+            if (_phases != null && _phases.IsHandingOver)
+            {
+                ClearHover();
+                return;
+            }
+
             float scroll = Input.mouseScrollDelta.y;
             if (scroll != 0)
             {
@@ -114,7 +128,9 @@ namespace GridBattle
                 if (overCell && Input.GetMouseButtonDown(0))
                 {
                     Cell cell = grid.GetCell(coord);
-                    GridUnit picked = cell.Attacker != null ? cell.Attacker : cell.King;
+                    GridUnit picked = null;
+                    if (cell.Attacker != null && CanPickUp(cell.Attacker)) picked = cell.Attacker;
+                    else if (cell.King != null && CanPickUp(cell.King)) picked = cell.King;
                     if (picked != null)
                     {
                         _dragging = picked;
@@ -137,11 +153,11 @@ namespace GridBattle
                 target + Vector3.up * _dragHeight,
                 1f - Mathf.Exp(-20f * Time.deltaTime));
 
-            bool valid = overCell && grid.CanPlace(_dragging, coord);
+            bool valid = overCell && grid.CanPlace(_dragging, coord)
+                         && (_phases == null || _phases.CanDropOn(grid));
             if (overCell)
             {
-                int range = RangeOf(_dragging.Kind);
-                if (valid && range > 0) ShowAttackPreview(grid, coord, FacingStep(_dragging.transform), range);
+                if (valid && _dragging.Range > 0) ShowAttackPreview(grid, coord);
                 else SetHover(grid, coord, valid ? _validColor : _invalidColor);
             }
 
@@ -215,20 +231,11 @@ namespace GridBattle
             _ => 0
         };
 
-        private static Vector2Int FacingStep(Transform t)
+        // Dùng chung AttackRange với Battle -> ô tô preview = ô tính damage.
+        private void ShowAttackPreview(GridSystem grid, Vector2Int origin)
         {
-            Vector3 f = t.forward;
-            return new Vector2Int(Mathf.RoundToInt(f.x), Mathf.RoundToInt(f.z));
-        }
-
-        private void ShowAttackPreview(GridSystem grid, Vector2Int origin, Vector2Int step, int range)
-        {
-            for (int i = 0; i < range; i++)
-            {
-                Vector2Int c = origin + step * i;
-                if (grid.GetCell(c) == null) continue;
+            foreach (Vector2Int c in AttackRange.GetCells(grid, origin, _dragging.transform, _dragging.Range))
                 SetHover(grid, c, _previewAttackColor);
-            }
         }
 
         // ---------------- Nút tạm (OnGUI) ----------------
@@ -243,6 +250,8 @@ namespace GridBattle
 
         private void DrawSpawnButton(int index, string label, UnitKind kind, GameObject model)
         {
+            if (_phases != null && !_phases.CanSpawn(kind)) return; // phase này không được đặt loại quân này
+
             var rect = new Rect(16 + index * 110, Screen.height - 56, 100, 40);
             _uiRects.Add(rect);
             if (GUI.Button(rect, label) && _dragging == null)
@@ -256,6 +265,7 @@ namespace GridBattle
         {
             Vector2 m = Input.mousePosition;
             m.y = Screen.height - m.y; 
+            if (_phases != null && _phases.IsOverUi(m)) return true;
             foreach (Rect r in _uiRects)
                 if (r.Contains(m)) return true;
             return false;
@@ -285,6 +295,7 @@ namespace GridBattle
 
             var unit = go.AddComponent<GridUnit>();
             unit.Kind = kind;
+            unit.Range = RangeOf(kind);
             return unit;
         }
 
