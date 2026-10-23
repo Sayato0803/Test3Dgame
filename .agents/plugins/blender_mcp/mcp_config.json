@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "blender": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "C:\\Users\\LEGION\\.local\\bin\\uvx.exe",
+        "mcp-for-blender"
+      ]
+    }
+  }
+}
