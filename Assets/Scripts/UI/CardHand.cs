@@ -20,12 +20,14 @@ namespace GridBattle
         [SerializeField] private Sprite _kingSprite;
         [SerializeField] private Sprite _knightSprite;
         [SerializeField] private Sprite _mageSprite;
+        [SerializeField] private Sprite _scoutSprite;
         [SerializeField] private Sprite _shineSprite;
 
         [Header("Mô tả chức năng (chuột phải vào thẻ để xem)")]
-        [SerializeField, TextArea] private string _kingText = "Giấu trên bàn mình\n10 máu";
-        [SerializeField, TextArea] private string _knightText = "Tầm đánh 3 ô\nphía trước";
-        [SerializeField, TextArea] private string _mageText = "Tầm đánh 4 ô\nphía trước";
+        [SerializeField, TextArea] private string _kingText = "Hide it on your board.\n10 HP";
+        [SerializeField, TextArea] private string _knightText = "Strikes 3 cells\nin front of it";
+        [SerializeField, TextArea] private string _mageText = "Strikes 4 cells\nin front of it";
+        [SerializeField, TextArea] private string _scoutText = "Once per match:\nreveal enemy Kings in a 2x2 area";
 
         [Header("Bố cục (pixel tham chiếu 1920x1080)")]
         [SerializeField] private Vector2 _cardSize = new(170f, 255f);
@@ -33,7 +35,7 @@ namespace GridBattle
         [SerializeField] private float _restY = 120f;
         [SerializeField] private float _arcDrop = 10f;
 
-        private static readonly UnitKind[] Order = { UnitKind.King, UnitKind.Knight, UnitKind.Mage };
+        private static readonly UnitKind[] Order = { UnitKind.King, UnitKind.Knight, UnitKind.Mage, UnitKind.Scout };
 
         private RectTransform _hand;
         private readonly List<CardView> _cards = new();
@@ -81,6 +83,7 @@ namespace GridBattle
             {
                 int count = _phases != null ? _phases.RemainingSpawns(kind) : 1;
                 if (_placer != null && _placer.DraggingNewKind == kind) count--; // lá đang được dùng
+                if (_placer != null && _placer.IsScouting && kind == UnitKind.Scout) count--;
                 for (int i = 0; i < count; i++) want.Add(kind);
             }
 
@@ -130,7 +133,8 @@ namespace GridBattle
             Vector2 screen = RectTransformUtility.WorldToScreenPoint(null, card.transform.position);
             // Bỏ lá khỏi tay trước: TrySpawnFromCard phát OnDragStarted -> Refresh, lá này không được tính nữa.
             _cards.Remove(card);
-            bool ok = _placer.TrySpawnFromCard((UnitKind)card.Tag, screen);
+            var kind = (UnitKind)card.Tag;
+            bool ok = kind == UnitKind.Scout ? _placer.BeginScout() : _placer.TrySpawnFromCard(kind, screen);
             if (!ok) _cards.Add(card);
             return ok;
         }
@@ -145,6 +149,7 @@ namespace GridBattle
             {
                 UnitKind.King => _kingSprite,
                 UnitKind.Knight => _knightSprite,
+                UnitKind.Scout => _scoutSprite,
                 _ => _mageSprite
             };
 
@@ -195,9 +200,10 @@ namespace GridBattle
             {
                 UnitKind.King => _kingText,
                 UnitKind.Knight => _knightText,
+                UnitKind.Scout => _scoutText,
                 _ => _mageText
             };
-            UiFactory.Label("Desc", dim.transform, $"{kind}\n{desc}", 34, TextAnchor.UpperCenter, null, FontStyle.Bold)
+            UiFactory.Label("Desc", dim.transform, $"{kind.ToString().ToUpper()}\n{desc}", 34, TextAnchor.UpperCenter, null, FontStyle.Bold)
                 .rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0f, -230f), new Vector2(900f, 200f));
 
             Sfx.Play(SfxId.CardFlip);

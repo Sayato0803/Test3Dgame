@@ -25,17 +25,17 @@ namespace GridBattle
             RectTransform list = UiFactory.Rect("List", win.transform).Stretch(40f);
             UiFactory.Vertical(list, 18f);
 
-            UiFactory.Label("Title", list, "CÀI ĐẶT", 52, TextAnchor.MiddleCenter, UiFactory.Accent, FontStyle.Bold).Height(80f);
+            UiFactory.Label("Title", list, "SETTINGS", 52, TextAnchor.MiddleCenter, UiFactory.Accent, FontStyle.Bold).Height(80f);
 
-            Row(list, "Âm lượng");
+            Row(list, "Volume");
             UiFactory.Slider("Volume", list, 0f, 1f, GameSettings.Volume, v => GameSettings.Volume = v).Height(36f);
 
-            Row(list, "Tốc độ camera");
+            Row(list, "Camera speed");
             UiFactory.Slider("CameraSpeed", list, 0.5f, 2f, GameSettings.CameraSpeed, v => GameSettings.CameraSpeed = v).Height(36f);
 
             _qualityButton = UiFactory.Button("Quality", list, "", CycleQuality, 28).Skin("btn_blank_blue", true).Height(64f);
             _fullscreenButton = UiFactory.Button("Fullscreen", list, "", ToggleFullscreen, 28).Skin("btn_blank_blue", true).Height(64f);
-            UiFactory.Button("Close", list, "Đóng", Close, 32).Skin("btn_blank_orange", true).Height(72f);
+            UiFactory.Button("Close", list, "CLOSE", Close, 32).Skin("btn_blank_orange", true).Height(72f);
             RefreshLabels();
         }
 
@@ -69,8 +69,8 @@ namespace GridBattle
 
         private void RefreshLabels()
         {
-            _qualityButton.SetText($"Đồ hoạ: {QualitySettings.names[GameSettings.Quality]}  ▶");
-            _fullscreenButton.SetText($"Toàn màn hình: {(GameSettings.Fullscreen ? "Bật" : "Tắt")}");
+            _qualityButton.SetText($"Graphics: {QualitySettings.names[GameSettings.Quality]}  >");
+            _fullscreenButton.SetText($"Fullscreen: {(GameSettings.Fullscreen ? "On" : "Off")}");
         }
     }
 }

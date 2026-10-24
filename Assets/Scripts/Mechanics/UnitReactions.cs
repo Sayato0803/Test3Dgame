@@ -111,6 +111,7 @@ namespace GridBattle
                 if (IsShown) { Sfx.Play(SfxId.Poof, 0.8f); CartoonFx.Puff(Feet + Vector3.up * 0.3f, 0.8f, 10); }
             }
             _held = true;
+            if (TryGetComponent(out CharacterRig rig)) rig.Panic = true;
             _heldTime = 0f;
             _shake = 0f;
             _lastPos = transform.position;
@@ -125,6 +126,7 @@ namespace GridBattle
         public void Land(float fallHeight, bool quiet = false)
         {
             _held = false;
+            if (TryGetComponent(out CharacterRig rig)) rig.Panic = false;
             if (_scripted || _dead) return; // đang chạy chuỗi đè bẹp / nảy: chuỗi đó tự kết thúc bằng cú tiếp đất
             ResetVisual();
             _swing = Vector3.zero;

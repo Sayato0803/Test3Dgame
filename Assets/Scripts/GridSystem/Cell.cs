@@ -2,7 +2,8 @@ using UnityEngine;
 
 namespace GridBattle
 {
-    public enum UnitKind { King, Knight, Mage }
+    /// <summary>Scout = thẻ Trinh sát, không phải quân (không bao giờ được spawn).</summary>
+    public enum UnitKind { King, Knight, Mage, Scout }
 
     /// <summary>
     /// Dữ liệu của 1 ô trong mảng Cell[,]. Là class thường (không phải MonoBehaviour)

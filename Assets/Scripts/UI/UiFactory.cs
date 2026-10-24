@@ -7,19 +7,21 @@ using UnityEngine.UI;
 namespace GridBattle
 {
     /// <summary>
-    /// Dựng uGUI bằng code với 1 phong cách chung (HUD, pause, main menu, settings),
-    /// để không phải sửa tay từng scene. Font: LegacyRuntime (dynamic, có fallback font hệ thống -> hiển thị được tiếng Việt).
+    /// Dựng uGUI bằng code với 1 phong cách chung kiểu hybrid-casual (panel bo tròn viền dày, nút bóng, chữ đậm có viền),
+    /// để không phải sửa tay từng scene. Font: Lilita One (Resources/GUI/fonts, giấy phép OFL), thiếu thì dùng LegacyRuntime.
     /// </summary>
     public static class UiFactory
     {
-        public static readonly Color PanelColor = new(0.07f, 0.08f, 0.12f, 0.92f);
+        public static readonly Color PanelColor = new(0.16f, 0.22f, 0.45f, 0.96f);
+        public static readonly Color TextOutline = new(0.07f, 0.06f, 0.16f, 1f);
         public static readonly Color ButtonColor = new(0.16f, 0.18f, 0.26f, 1f);
         public static readonly Color ButtonHover = new(0.26f, 0.3f, 0.42f, 1f);
-        public static readonly Color Accent = new(0.95f, 0.8f, 0.35f, 1f);
+        public static readonly Color Accent = new(1f, 0.83f, 0.22f, 1f);
         public static readonly Color TextColor = new(0.94f, 0.94f, 0.97f, 1f);
 
         private static Font _font;
-        public static Font Font => _font != null ? _font : _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        public static Font Font => _font != null ? _font
+            : _font = Resources.Load<Font>("GUI/fonts/LilitaOne-Regular") ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
         public static void EnsureEventSystem()
         {
@@ -79,15 +81,21 @@ namespace GridBattle
             return img;
         }
 
-        /// <summary>Panel có viền sáng (Outline) dùng cho hộp thoại.</summary>
+        /// <summary>Panel bo tròn viền dày (ảnh 9-slice trắng, tô bằng 'color'). Thiếu ảnh thì là panel vuông màu.</summary>
+        public static Image RoundPanel(string name, Transform parent, Color color, bool blockRaycasts = true)
+        {
+            Image img = Panel(name, parent, color, blockRaycasts);
+            img.sprite = Resources.Load<Sprite>("GUI/ui_panels/panel");
+            img.type = Image.Type.Sliced;
+            img.pixelsPerUnitMultiplier = 1.4f;
+            return img;
+        }
+
+        /// <summary>Hộp thoại: panel bo tròn màu chủ đạo, đặt giữa màn hình.</summary>
         public static Image Window(string name, Transform parent, Vector2 size)
         {
-            // Nền đặc: Outline vẽ thêm các bản sao màu viền phía sau, nền trong suốt sẽ bị ám màu viền.
-            Image img = Panel(name, parent, new Color(PanelColor.r, PanelColor.g, PanelColor.b, 1f));
+            Image img = RoundPanel(name, parent, new Color(PanelColor.r, PanelColor.g, PanelColor.b, 1f));
             img.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, size);
-            var outline = img.gameObject.AddComponent<Outline>();
-            outline.effectColor = new Color(Accent.r, Accent.g, Accent.b, 0.6f);
-            outline.effectDistance = new Vector2(2f, -2f);
             return img;
         }
 
@@ -99,15 +107,20 @@ namespace GridBattle
             t.font = Font;
             t.text = text;
             t.fontSize = size;
-            t.fontStyle = style;
+            // Lilita One vốn đã đậm: in đậm giả của Unity làm chữ nhoè -> chỉ dùng FontStyle với font dự phòng.
+            t.fontStyle = Font.name.StartsWith("Lilita") ? FontStyle.Normal : style;
             t.alignment = align;
             t.color = color ?? TextColor;
             t.raycastTarget = false;
             t.horizontalOverflow = HorizontalWrapMode.Wrap;
             t.verticalOverflow = VerticalWrapMode.Overflow;
+            // Chữ kiểu hybrid-casual: viền tối dày + bóng đổ xuống dưới.
+            var outline = rt.gameObject.AddComponent<Outline>();
+            outline.effectColor = TextOutline;
+            outline.effectDistance = new Vector2(2f, -2f);
             var shadow = rt.gameObject.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0f, 0f, 0f, 0.6f);
-            shadow.effectDistance = new Vector2(2f, -2f);
+            shadow.effectColor = new Color(TextOutline.r, TextOutline.g, TextOutline.b, 0.8f);
+            shadow.effectDistance = new Vector2(0f, -4f);
             return t;
         }
 
@@ -158,9 +171,6 @@ namespace GridBattle
                 img.pixelsPerUnitMultiplier = 2.5f; // viền 9-slice 90px -> ~36 đơn vị UI, vừa cả nút cao 64
                 label.color = Color.white;
                 label.rectTransform.offsetMin = new Vector2(0f, 8f); // bóng đáy nút dày hơn đỉnh
-                var o = label.gameObject.AddComponent<Outline>();
-                o.effectColor = new Color(0.1f, 0.06f, 0.05f, 1f);
-                o.effectDistance = new Vector2(3f, -3f);
             }
             else
             {

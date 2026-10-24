@@ -22,6 +22,9 @@ namespace GridBattle
 
         [Header("Luật")]
         [SerializeField] private int _kingsPerPlayer = 2;
+        [Tooltip("Tối đa mỗi loại; không bắt buộc đặt đủ.")]
+        [SerializeField] private int _knightsPerPlayer = 2;
+        [SerializeField] private int _magesPerPlayer = 2;
 
         public GamePhase Current { get; private set; } = GamePhase.Deploy;
         public Player CurrentPlayer { get; private set; }
@@ -33,6 +36,8 @@ namespace GridBattle
         public event Action StateChanged;
         /// <summary>1 King trúng đòn (King, damage, delay giây trước khi hiệu ứng trúng đòn chạy) -> HUD hiện số damage.</summary>
         public event Action<GridUnit, int, float> KingHit;
+        /// <summary>Đòn hạ King cuối cùng của đối thủ (King, delay tới lúc trúng) -> HUD chạy slow-mo kết liễu.</summary>
+        public event Action<GridUnit, float> FinalBlow;
 
         /// <summary>Đang chạy hoạt ảnh battle (đè bẹp, King bị đánh văng): tạm khoá thao tác và Submit.</summary>
         public bool IsAnimating => Time.time < _busyUntil;
@@ -44,6 +49,12 @@ namespace GridBattle
 
         public IReadOnlyList<string> BattleReport => _battleReport;
         public Player Winner => _winner;
+        public Player Player1 => _player1;
+        public Player Player2 => _player2;
+        public int KingsPerPlayer => _kingsPerPlayer;
+
+        /// <summary>Người chơi đã dùng thẻ Trinh sát (mỗi trận 1 lần).</summary>
+        private readonly HashSet<Player> _scoutUsed = new();
 
         private void Start()
         {
@@ -53,6 +64,7 @@ namespace GridBattle
             _player1.Board.OnUnitPlaced += HandleUnitPlaced;
             _player2.Board.OnUnitPlaced += HandleUnitPlaced;
 
+            if (RenderSettings.sun != null) RenderSettings.sun.gameObject.AddComponent<SkyCycle>().Bind(this);
             EnterPhase(GamePhase.Deploy, _player1);
         }
 
@@ -155,8 +167,8 @@ namespace GridBattle
                 stats.TakeDamage(damage);
                 stats.Reveal(king.Coord);
                 results.Add((king, stats, damage, squasher, push, rangeHitters));
-                _battleReport.Add($"King ở ô {king.Coord} " + (squasher != null ? "bị ĐÈ BẸP, " : "") +
-                                  $"trúng {damage} dmg, còn {stats.Health}/{stats.MaxHealth}" + (stats.IsDead ? " - CHẾT" : ""));
+                _battleReport.Add($"King at {king.Coord} " + (squasher != null ? "SQUASHED, " : "") +
+                                  $"took {damage} dmg, {stats.Health}/{stats.MaxHealth} HP left" + (stats.IsDead ? " - DEFEATED" : ""));
             }
 
             // 2. Hoạt ảnh. Attacker đè bẹp không lao lên đánh (nó rơi từ trên xuống), các attacker khác lao lên.
@@ -169,6 +181,8 @@ namespace GridBattle
 
             float busy = results.Count > 0 ? 1f : 0.5f;
             int hitIndex = 0;
+            GridUnit lastKill = null;
+            float lastKillTime = 0f;
             foreach (var r in results)
             {
                 var kr = r.king.GetComponent<UnitReactions>();
@@ -184,18 +198,23 @@ namespace GridBattle
                     float impact = Squash(r.squasher, r.king, kr, death, r.push, hitIndex * 0.35f);
                     KingHit?.Invoke(r.king, r.damage, impact + 0.05f);
                     busy = Mathf.Max(busy, impact + 1.6f);
+                    strike = impact + 0.05f;
                 }
                 else
                 {
                     if (kr != null) kr.PlayHit(strike, death, r.push);
                     KingHit?.Invoke(r.king, r.damage, strike);
                 }
-                if (r.stats.IsDead) busy = Mathf.Max(busy, 3.2f);
+                if (r.stats.IsDead)
+                {
+                    busy = Mathf.Max(busy, 3.2f);
+                    if (lastKill == null || strike >= lastKillTime) { lastKill = r.king; lastKillTime = strike; }
+                }
                 hitIndex++;
             }
             _busyUntil = Time.time + busy;
 
-            if (_battleReport.Count == 0) _battleReport.Add("Không trúng King nào.");
+            if (_battleReport.Count == 0) _battleReport.Add("No King was hit.");
             foreach (string line in _battleReport) Debug.Log($"[Battle] {attacker.DisplayName}: {line}");
 
             if (AllKingsDead(defender))
@@ -203,6 +222,7 @@ namespace GridBattle
                 _winner = attacker;
                 Current = GamePhase.GameOver;
                 Debug.Log($"[Phase] {attacker.DisplayName} thắng");
+                if (lastKill != null) FinalBlow?.Invoke(lastKill, lastKillTime);
             }
             RefreshKingVisibility();
             StateChanged?.Invoke();
@@ -335,7 +355,9 @@ namespace GridBattle
                 case GamePhase.Deploy:
                     return kind == UnitKind.King && CurrentPlayer.Kings.Count < _kingsPerPlayer;
                 case GamePhase.Attack:
-                    return kind != UnitKind.King; // Knight/Mage không giới hạn số lượng
+                    if (kind == UnitKind.Knight) return CurrentPlayer.CountAttackers(UnitKind.Knight) < _knightsPerPlayer;
+                    if (kind == UnitKind.Mage) return CurrentPlayer.CountAttackers(UnitKind.Mage) < _magesPerPlayer;
+                    return false;
                 default:
                     return false;
             }
@@ -403,16 +425,51 @@ namespace GridBattle
             StateChanged?.Invoke();
         }
 
-        /// <summary>Số lá bài loại này trên tay. Knight/Mage không giới hạn nên luôn còn 1 lá (bộ bài vô hạn).</summary>
+        /// <summary>Số lá bài loại này trên tay (= số quân còn được tạo; Scout: 1 lá nếu chưa dùng).</summary>
         public int RemainingSpawns(UnitKind kind)
         {
             if (IsHandingOver || CurrentPlayer == null) return 0;
             return Current switch
             {
                 GamePhase.Deploy when kind == UnitKind.King => _kingsPerPlayer - CurrentPlayer.Kings.Count,
-                GamePhase.Attack when kind != UnitKind.King => 1,
+                GamePhase.Attack when kind == UnitKind.Knight => _knightsPerPlayer - CurrentPlayer.CountAttackers(UnitKind.Knight),
+                GamePhase.Attack when kind == UnitKind.Mage => _magesPerPlayer - CurrentPlayer.CountAttackers(UnitKind.Mage),
+                GamePhase.Attack when kind == UnitKind.Scout => _scoutUsed.Contains(CurrentPlayer) ? 0 : 1,
                 _ => 0
             };
+        }
+
+        // ---------------- Thẻ Trinh sát ----------------
+
+        public bool CanScout() => Current == GamePhase.Attack && !IsHandingOver && !IsAnimating
+                                  && CurrentPlayer != null && !_scoutUsed.Contains(CurrentPlayer);
+
+        public bool CanScoutOn(GridSystem grid) => CurrentPlayer != null && grid == CurrentPlayer.Opponent.Board;
+
+        /// <summary>Lộ mọi King còn sống của đối thủ trong vùng 2x2 (ô 'corner' + 3 ô kế bên tăng x / y) tới hết lượt. Mỗi người 1 lần/trận.</summary>
+        public void Scout(GridSystem grid, Vector2Int corner)
+        {
+            if (!CanScout() || !CanScoutOn(grid)) return;
+            _scoutUsed.Add(CurrentPlayer);
+            int found = 0;
+            foreach (GridUnit k in CurrentPlayer.Opponent.Kings)
+            {
+                if (!k.TryGetComponent(out KingStats s) || s.IsDead) continue;
+                Vector2Int d = k.Coord - corner;
+                if (d.x < 0 || d.x > 1 || d.y < 0 || d.y > 1) continue;
+                s.Reveal(k.Coord);
+                found++;
+                CartoonFx.Comic("shock", k.transform.position + Vector3.up * 1.2f, 0.3f);
+            }
+            for (int dx = 0; dx <= 1; dx++)
+                for (int dy = 0; dy <= 1; dy++)
+                    if (grid.GetCell(corner + new Vector2Int(dx, dy)) != null)
+                        CartoonFx.Puff(grid.CellToWorld(corner + new Vector2Int(dx, dy)) + Vector3.up * 0.1f, 0.6f, 5);
+            Sfx.Play(found > 0 ? SfxId.Ding : SfxId.Deny, 1f, 0f);
+            _battleReport.Clear();
+            _battleReport.Add(found > 0 ? $"Scout found {found} King(s)!" : "Scout found nothing.");
+            RefreshKingVisibility();
+            StateChanged?.Invoke();
         }
 
         // ---------------- Cho HUD (GameHud) ----------------
@@ -420,26 +477,26 @@ namespace GridBattle
         /// <summary>GridPlacer hỏi để không raycast khi đang che màn hình (nút HUD do EventSystem chặn).</summary>
         public bool IsOverUi(Vector2 guiPoint) => IsHandingOver;
 
-        public string SubmitLabel => Current == GamePhase.End ? "Kết thúc lượt" : "Xác nhận";
+        public string SubmitLabel => Current == GamePhase.End ? "END TURN" : "CONFIRM";
 
         public string PhaseName => Current switch
         {
-            GamePhase.Deploy => "Triển khai",
-            GamePhase.Setup => "Chuẩn bị",
-            GamePhase.Attack => "Tấn công",
-            GamePhase.End => "Kết quả",
-            _ => "Kết thúc"
+            GamePhase.Deploy => "Deploy",
+            GamePhase.Setup => "Setup",
+            GamePhase.Attack => "Attack",
+            GamePhase.End => "Results",
+            _ => "Game Over"
         };
 
         public string HintText => Hint();
 
         private string Hint() => Current switch
         {
-            GamePhase.Deploy => $"Chọn thẻ King và đặt lên bàn mình ({CurrentPlayer.Kings.Count}/{_kingsPerPlayer})",
-            GamePhase.Setup => "Có thể kéo King sang ô khác, rồi Xác nhận",
-            GamePhase.Attack => $"Đặt bao nhiêu Knight ({CurrentPlayer.CountAttackers(UnitKind.Knight)}), " +
-                                $"Mage ({CurrentPlayer.CountAttackers(UnitKind.Mage)}) tuỳ ý trên bàn đối thủ, rồi Xác nhận",
-            GamePhase.End => "Xem kết quả, rồi Kết thúc lượt",
+            GamePhase.Deploy => $"Play King cards onto your board ({CurrentPlayer.Kings.Count}/{_kingsPerPlayer} Kings placed)",
+            GamePhase.Setup => "Drag your Kings to new cells if you like, then Confirm",
+            GamePhase.Attack => $"Place up to {_knightsPerPlayer} Knights ({CurrentPlayer.CountAttackers(UnitKind.Knight)}) and " +
+                                $"{_magesPerPlayer} Mages ({CurrentPlayer.CountAttackers(UnitKind.Mage)}) on the enemy board, then Confirm",
+            GamePhase.End => "Check the results, then End Turn",
             _ => ""
         };
     }

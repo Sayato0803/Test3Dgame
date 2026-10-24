@@ -7570,8 +7570,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _title: KING HUNT
-  _subtitle: "Gi\u1EA5u King \xB7 R\xFAt b\xE0i \xB7 S\u0103n King \u0111\u1ED1i
-    th\u1EE7"
+  _subtitle: Hide your Kings. Play your cards. Hunt the enemy King!
   _gameScene: GridTest
   _camera: {fileID: 1971536642}
   _showcaseModels:
@@ -7581,7 +7580,6 @@ MonoBehaviour:
   _unitScale: 0.7
   _orbitRadius: 6
   _orbitHeight: 2.6
-  _orbitSpeed: 8
 --- !u!4 &755165191
 Transform:
   m_ObjectHideFlags: 0

@@ -1,0 +1,111 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 32fbc7209cb5c664d890963fc35319a0, type: 3}
+  m_Name: SfxLibrary
+  m_EditorClassIdentifier: 
+  Sounds:
+  - Name: Pop
+    Id: 0
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Yelp
+    Id: 1
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Thud
+    Id: 2
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Whoosh
+    Id: 3
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: CameraWhoosh
+    Id: 4
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Punch
+    Id: 5
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Squish
+    Id: 6
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Boing
+    Id: 7
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: SlideWhistle
+    Id: 8
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Ding
+    Id: 9
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: CardHover
+    Id: 10
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: CardFlip
+    Id: 11
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: CardDeal
+    Id: 12
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Deny
+    Id: 13
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: UiHover
+    Id: 14
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: UiClick
+    Id: 15
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Chime
+    Id: 16
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Fanfare
+    Id: 17
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Tick
+    Id: 18
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Splash
+    Id: 19
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Poof
+    Id: 20
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Magic
+    Id: 21
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Slash
+    Id: 22
+    Clip: {fileID: 0}
+    Volume: 1
+  - Name: Zap
+    Id: 23
+    Clip: {fileID: 0}
+    Volume: 1

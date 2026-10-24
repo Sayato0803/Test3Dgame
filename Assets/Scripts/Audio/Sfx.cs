@@ -12,6 +12,7 @@ namespace GridBattle
 
     /// <summary>
     /// Hiệu ứng âm thanh cartoon tự tổng hợp bằng code (không cần file âm thanh, không lo bản quyền).
+    /// Muốn thay âm: gán file vào ô tương ứng trong Assets/Resources/Audio/SfxLibrary.asset (ô trống = giữ âm tổng hợp).
     /// Mỗi âm sinh 1 lần khi dùng lần đầu rồi cache. Phát qua pool AudioSource 2D; âm lượng tổng = AudioListener.volume (Cài đặt).
     /// </summary>
     public static class Sfx
@@ -27,8 +28,10 @@ namespace GridBattle
         {
             if (!Application.isPlaying) return;
             AudioSource src = NextSource();
-            src.clip = Get(id);
-            src.volume = volume * BaseVolume(id);
+            SfxLibrary.Entry custom = SfxLibrary.Instance != null ? SfxLibrary.Instance.Find(id) : null;
+            bool useCustom = custom != null && custom.Clip != null;
+            src.clip = useCustom ? custom.Clip : Get(id);
+            src.volume = volume * (useCustom ? custom.Volume : BaseVolume(id));
             src.pitch = 1f + UnityEngine.Random.Range(-pitchJitter, pitchJitter);
             if (delay > 0f) src.PlayDelayed(delay);
             else src.Play();

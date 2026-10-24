@@ -31,7 +31,9 @@ namespace GridBattle
 
         [SerializeField] private int _mageRange = 4;
         [SerializeField] private int _knightRange = 3;
-        [SerializeField] private Color _previewAttackColor = new(0.55f, 0.8f, 1f, 0.4f);
+        [SerializeField] private Color _knightPreviewColor = new(1f, 0.55f, 0.15f);
+        [SerializeField] private Color _magePreviewColor = new(0.7f, 0.4f, 1f);
+        [SerializeField] private Color _scoutColor = new(0.3f, 0.95f, 0.9f);
 
         private readonly int _overViewCam = 2;
         public int OverviewCameraIndex => _overViewCam;
@@ -40,11 +42,14 @@ namespace GridBattle
 
         private GridUnit _dragging;
         private bool _draggingNew;
+        private bool _scouting;
         private float _spawnTime;
         private GridSystem _hoverGrid;
         private readonly List<Vector2Int> _hoverCoords = new();
 
-        public bool IsDragging => _dragging != null;
+        /// <summary>Đang cầm quân hoặc đang chọn vùng Trinh sát: khoá Submit / pause bằng Esc.</summary>
+        public bool IsDragging => _dragging != null || _scouting;
+        public bool IsScouting => _scouting;
         /// <summary>Đang kéo 1 quân mới từ thẻ bài (chưa đặt) - CardHand dùng để không chia lại lá đó.</summary>
         public UnitKind? DraggingNewKind => _dragging != null && _draggingNew ? _dragging.Kind : null;
         /// <summary>Camera đang bay: tạm khoá thao tác.</summary>
@@ -110,6 +115,11 @@ namespace GridBattle
         {
             if (Time.timeScale == 0f) return; // pause menu
 
+            // Mắt các quân nhìn theo con trỏ (điểm trên mặt bàn, nâng lên ngang đầu).
+            Ray pointerRay = ActiveCam.ScreenPointToRay(Input.mousePosition);
+            CharacterRig.Pointer = new Plane(Vector3.up, Vector3.zero).Raycast(pointerRay, out float pd)
+                ? pointerRay.GetPoint(pd) + Vector3.up * 0.6f : (Vector3?)null;
+
             if (Input.GetKeyDown(KeyCode.Alpha1)) SwitchCamera(0);
             if (Input.GetKeyDown(KeyCode.Alpha2)) SwitchCamera(1);
             if (Input.GetKeyDown(KeyCode.Alpha3)) SwitchCamera(2);
@@ -141,6 +151,24 @@ namespace GridBattle
 
             ClearHover();
             bool overCell = TryGetHoveredCell(out GridSystem grid, out Vector2Int coord);
+
+            if (_scouting)
+            {
+                if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1)) { EndScout(); return; }
+                if (overCell && _phases.CanScoutOn(grid))
+                {
+                    Color col = Pulse(_scoutColor);
+                    for (int dx = 0; dx <= 1; dx++)   // vùng Trinh sát 2x2: ô trỏ chuột + 3 ô kế bên
+                        for (int dy = 0; dy <= 1; dy++)
+                            if (grid.GetCell(coord + new Vector2Int(dx, dy)) != null) SetHover(grid, coord + new Vector2Int(dx, dy), col);
+                    if (Input.GetMouseButtonDown(0))
+                    {
+                        EndScout();
+                        _phases.Scout(grid, coord);
+                    }
+                }
+                return;
+            }
 
             if (_dragging == null)
             {
@@ -253,6 +281,24 @@ namespace GridBattle
             _ => _mageModel
         };
 
+        // ---------------- Thẻ Trinh sát ----------------
+
+        /// <summary>Bấm thẻ Trinh sát: chọn 1 vùng 2x2 trên bàn đối thủ (chuột phải / Esc để huỷ).</summary>
+        public bool BeginScout()
+        {
+            if (_dragging != null || _scouting || IsCameraMoving || _phases == null || !_phases.CanScout()) return false;
+            _scouting = true;
+            OnDragStarted?.Invoke(null);
+            return true;
+        }
+
+        private void EndScout()
+        {
+            _scouting = false;
+            ClearHover();
+            OnDragEnded?.Invoke(null, false);
+        }
+
         // ---------------- Raycast ----------------
 
         private bool TryGetHoveredCell(out GridSystem grid, out Vector2Int coord)
@@ -304,9 +350,13 @@ namespace GridBattle
         // Dùng chung AttackRange với Battle -> ô tô preview = ô tính damage.
         private void ShowAttackPreview(GridSystem grid, Vector2Int origin)
         {
+            Color col = Pulse(_dragging.Kind == UnitKind.Mage ? _magePreviewColor : _knightPreviewColor);
             foreach (Vector2Int c in AttackRange.GetCells(grid, origin, _dragging.transform, _dragging.Range))
-                SetHover(grid, c, _previewAttackColor);
+                SetHover(grid, c, col);
         }
+
+        /// <summary>Màu ô nhấp nháy sáng-tối để vùng tô nổi bật trên bàn.</summary>
+        private static Color Pulse(Color c) => Color.Lerp(c, Color.white, 0.2f + 0.2f * Mathf.Sin(Time.unscaledTime * 8f));
 
         // ---------------- UI ----------------
 
@@ -350,6 +400,7 @@ namespace GridBattle
             unit.Range = RangeOf(kind);
             ToonStyle.Apply(go);
             go.AddComponent<UnitReactions>();
+            go.AddComponent<CharacterRig>();
             return unit;
         }
     }

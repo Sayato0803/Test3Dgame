@@ -36,6 +36,18 @@ namespace GridBattle
                 .Append(_camera.DOFieldOfView(fov, duration).SetEase(Ease.OutBack));
         }
 
+        /// <summary>Lao camera về phía 'point' và nhìn thẳng vào nó (cận cảnh đòn kết liễu). Chạy theo thời gian thật.</summary>
+        public void Focus(Vector3 point, float amount = 0.45f, float duration = 0.35f)
+        {
+            _tween?.Kill();
+            _camera.transform.DOKill(true);
+            Transform t = _camera.transform;
+            Vector3 to = Vector3.Lerp(t.position, point, amount);
+            _tween = DOTween.Sequence().SetUpdate(true)
+                .Append(t.DOMove(to, duration).SetEase(Ease.OutCubic))
+                .Join(t.DORotateQuaternion(Quaternion.LookRotation(point - to), duration).SetEase(Ease.OutCubic));
+        }
+
         public bool IsMoving => _tween != null && _tween.IsActive() && _tween.IsPlaying();
         public int CurrentIndex { get; private set; } = -1;
 

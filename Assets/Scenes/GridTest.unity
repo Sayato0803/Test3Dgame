@@ -253,7 +253,6 @@ MonoBehaviour:
   m_Script: {fileID: 554960136}
   m_Name: 
   m_EditorClassIdentifier: 
-  Amplitude: 2.5
 --- !u!1 &16161203
 GameObject:
   m_ObjectHideFlags: 0
@@ -1459,8 +1458,6 @@ MonoBehaviour:
   m_Script: {fileID: 619259500}
   m_Name: 
   m_EditorClassIdentifier: 
-  Amplitude: 14
-  Frequency: 3
 --- !u!1 &94130416
 GameObject:
   m_ObjectHideFlags: 0
@@ -2210,7 +2207,6 @@ MonoBehaviour:
   m_Script: {fileID: 554960136}
   m_Name: 
   m_EditorClassIdentifier: 
-  Amplitude: 2.5
 --- !u!1 &152068658
 GameObject:
   m_ObjectHideFlags: 0
@@ -3046,7 +3042,6 @@ MonoBehaviour:
   m_Script: {fileID: 554960136}
   m_Name: 
   m_EditorClassIdentifier: 
-  Amplitude: 2.5
 --- !u!1 &189602889
 GameObject:
   m_ObjectHideFlags: 0
@@ -5150,7 +5145,6 @@ MonoBehaviour:
   m_Script: {fileID: 554960136}
   m_Name: 
   m_EditorClassIdentifier: 
-  Amplitude: 2.5
 --- !u!1 &320823164
 GameObject:
   m_ObjectHideFlags: 0
@@ -5906,7 +5900,6 @@ MonoBehaviour:
   m_Script: {fileID: 554960136}
   m_Name: 
   m_EditorClassIdentifier: 
-  Amplitude: 1.5
 --- !u!1 &355375498
 GameObject:
   m_ObjectHideFlags: 0
@@ -6298,7 +6291,6 @@ MonoBehaviour:
   m_Script: {fileID: 554960136}
   m_Name: 
   m_EditorClassIdentifier: 
-  Amplitude: 1.5
 --- !u!1 &370933099
 GameObject:
   m_ObjectHideFlags: 0
@@ -7115,7 +7107,6 @@ MonoBehaviour:
   m_Script: {fileID: 554960136}
   m_Name: 
   m_EditorClassIdentifier: 
-  Amplitude: 2.5
 --- !u!1 &429815411
 GameObject:
   m_ObjectHideFlags: 0
@@ -8334,7 +8325,6 @@ MonoBehaviour:
   m_Script: {fileID: 554960136}
   m_Name: 
   m_EditorClassIdentifier: 
-  Amplitude: 2.5
 --- !u!1 &492930424
 GameObject:
   m_ObjectHideFlags: 0
@@ -9580,8 +9570,6 @@ MonoBehaviour:
   m_Script: {fileID: 619259500}
   m_Name: 
   m_EditorClassIdentifier: 
-  Amplitude: 14
-  Frequency: 3
 --- !u!1 &549870007
 GameObject:
   m_ObjectHideFlags: 0
@@ -10997,7 +10985,9 @@ MonoBehaviour:
   _invalidColor: {r: 0.95, g: 0.25, b: 0.25, a: 1}
   _mageRange: 4
   _knightRange: 3
-  _previewAttackColor: {r: 0.55, g: 0.8, b: 1, a: 0.4}
+  _knightPreviewColor: {r: 1, g: 0.55, b: 0.15, a: 1}
+  _magePreviewColor: {r: 0.7, g: 0.4, b: 1, a: 1}
+  _scoutColor: {r: 0.3, g: 0.95, b: 0.9, a: 1}
 --- !u!4 &653899808
 Transform:
   m_ObjectHideFlags: 0
@@ -24691,10 +24681,20 @@ MonoBehaviour:
   _kingSprite: {fileID: 21300000, guid: 17e17b17771d8b34382b10b4a0143a43, type: 3}
   _knightSprite: {fileID: 21300000, guid: 135c5a8bf89419247adf22dda4f03ec3, type: 3}
   _mageSprite: {fileID: 21300000, guid: e9b49ad6b508e2c40988c9745ac3f4a4, type: 3}
+  _scoutSprite: {fileID: 21300000, guid: 78ab9d2b4281e954997d57bbd3b7b3a4, type: 3}
   _shineSprite: {fileID: 21300000, guid: f69e00021b78d6d4ab3e08ee3bb16c9c, type: 3}
-  _kingText: "Gi\u1EA5u tr\xEAn b\xE0n m\xECnh\n10 m\xE1u"
-  _knightText: "T\u1EA7m \u0111\xE1nh 3 \xF4\nph\xEDa tr\u01B0\u1EDBc"
-  _mageText: "T\u1EA7m \u0111\xE1nh 4 \xF4\nph\xEDa tr\u01B0\u1EDBc"
+  _kingText: 'Hide it on your board.
+
+    10 HP'
+  _knightText: 'Strikes 3 cells
+
+    in front of it'
+  _mageText: 'Strikes 4 cells
+
+    in front of it'
+  _scoutText: 'Once per match:
+
+    reveal enemy Kings in a 2x2 area'
   _cardSize: {x: 170, y: 255}
   _spacing: 185
   _restY: 150

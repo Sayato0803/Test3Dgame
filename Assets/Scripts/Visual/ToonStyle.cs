@@ -25,6 +25,8 @@ namespace GridBattle
             foreach (Renderer r in root.GetComponentsInChildren<Renderer>(true))
             {
                 if (r is ParticleSystemRenderer || r is SpriteRenderer) continue;
+                // Mesh quả cầu lửa thừa trong model Mage (co còn ~1cm trước mặt -> viền toon thành chấm đen). Phép dùng sprite riêng.
+                if (r.name.EndsWith("_Fireball")) { r.enabled = false; continue; }
                 Material[] mats = r.sharedMaterials;
                 for (int i = 0; i < mats.Length; i++)
                     if (mats[i] != null) mats[i] = Convert(mats[i], assets, smooth);
@@ -51,8 +53,8 @@ namespace GridBattle
             bool tiny = n.Contains("material.00") || n.Contains("eye") || n.Contains("pupil");
             m.SetFloat("_OutlineWidth", tiny ? 0f : assets.OutlineWidth);
             m.SetFloat("_OutlineSmoothNormals", smoothOutline ? 1f : 0f);
-            // Màu tối (đồng tử) không cần highlight/rim.
-            if (c.maxColorComponent < 0.1f) { m.SetFloat("_RimStrength", 0f); m.SetFloat("_HighlightStrength", 0.6f); }
+            // Màu tối (đồng tử) không cần highlight/rim: đồng tử giờ cong ôm mặt mắt, highlight toon sẽ thành mảng xám viền cứng.
+            if (c.maxColorComponent < 0.1f) { m.SetFloat("_RimStrength", 0f); m.SetFloat("_HighlightStrength", 0f); }
 
             Cache[src] = m;
             return m;
