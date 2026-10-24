@@ -26,6 +26,15 @@ namespace GridBattle
         [SerializeField] private int _knightsPerPlayer = 2;
         [SerializeField] private int _magesPerPlayer = 2;
 
+        [Header("Nhịp hoạt ảnh battle (giây)")]
+        [Tooltip("Từ lúc Confirm tới lúc đòn đánh thường chạm King.")]
+        [SerializeField] private float _attackAnimTime = 0.3f;
+        [Tooltip("Mỗi King trúng đòn sau lệch thêm chừng này.")]
+        [SerializeField] private float _hitStagger = 0.25f;
+        [SerializeField] private float _squashStagger = 0.35f;
+        [Tooltip("King chết: khoá thao tác thêm chừng này sau cú trúng (đủ cho clip KnockedOff / bắn lên trời).")]
+        [SerializeField] private float _deathBusy = 2.9f;
+
         public GamePhase Current { get; private set; } = GamePhase.Deploy;
         public Player CurrentPlayer { get; private set; }
 
@@ -137,7 +146,7 @@ namespace GridBattle
             Player defender = attacker.Opponent;
             _battleReport.Clear();
             var hitters = new HashSet<GridUnit>();
-            var results = new List<(GridUnit king, KingStats stats, int damage, GridUnit squasher, Vector3 push, List<GridUnit> rangeHitters)>();
+            var results = new List<(GridUnit king, KingStats stats, int damage, GridUnit squasher, List<GridUnit> rangeHitters)>();
 
             // 1. Tính damage cho mọi King trước (chưa dời quân nào).
             foreach (GridUnit king in defender.Kings)
@@ -148,7 +157,6 @@ namespace GridBattle
                 int damage = 0;
                 GridUnit squasher = null;
                 var rangeHitters = new List<GridUnit>();
-                Vector3 push = Vector3.zero; // hướng văng: từ các attacker đánh trúng về phía King
                 foreach (GridUnit a in attacker.Attackers)
                 {
                     if (a.Grid != defender.Board) continue;
@@ -157,7 +165,6 @@ namespace GridBattle
                         damage++;
                         hitters.Add(a);
                         rangeHitters.Add(a);
-                        push += king.transform.position - a.transform.position;
                     }
                     if (a.Coord == king.Coord) squasher = a;
                 }
@@ -166,17 +173,26 @@ namespace GridBattle
 
                 stats.TakeDamage(damage);
                 stats.Reveal(king.Coord);
-                results.Add((king, stats, damage, squasher, push, rangeHitters));
+                results.Add((king, stats, damage, squasher, rangeHitters));
                 _battleReport.Add($"King at {king.Coord} " + (squasher != null ? "SQUASHED, " : "") +
                                   $"took {damage} dmg, {stats.Health}/{stats.MaxHealth} HP left" + (stats.IsDead ? " - DEFEATED" : ""));
             }
 
-            // 2. Hoạt ảnh. Attacker đè bẹp không lao lên đánh (nó rơi từ trên xuống), các attacker khác lao lên.
+            // 2. Hoạt ảnh. King chết vì đòn từ xa: quân đánh trúng gần King nhất ra đòn kết liễu (clip PowerSlash / ZapCharge),
+            // mỗi quân kết liễu tối đa 1 King. Các quân khác vẫn đánh nhưng không hiện chữ manga.
+            // Attacker đè bẹp không lao lên đánh (nó rơi từ trên xuống); đè chết thì King bắn lên trời.
+            var finishers = new Dictionary<GridUnit, GridUnit>(); // King -> quân kết liễu
+            foreach (var r in results)
+                if (r.stats.IsDead && r.squasher == null)
+                {
+                    GridUnit f = Nearest(r.king, r.rangeHitters, finishers.Values);
+                    if (f != null) finishers[r.king] = f;
+                }
             var squashers = new HashSet<GridUnit>();
             foreach (var r in results) if (r.squasher != null) squashers.Add(r.squasher);
             int order = 0;
             foreach (GridUnit a in attacker.Attackers)
-                if (a.Grid == defender.Board && !squashers.Contains(a) && a.TryGetComponent(out UnitReactions ar))
+                if (a.Grid == defender.Board && !squashers.Contains(a) && !finishers.ContainsValue(a) && a.TryGetComponent(out UnitReactions ar))
                     ar.PlayAttack(hitters.Contains(a) ? 0f : 0.05f * ++order);
 
             float busy = results.Count > 0 ? 1f : 0.5f;
@@ -186,28 +202,34 @@ namespace GridBattle
             foreach (var r in results)
             {
                 var kr = r.king.GetComponent<UnitReactions>();
-                // Ưu tiên kiểu chết: Đè bẹp > Mage > Knight.
-                DeathKind death = !r.stats.IsDead ? DeathKind.None
-                    : r.squasher != null ? DeathKind.Sky
-                    : r.rangeHitters.Exists(a => a.Kind == UnitKind.Mage) ? DeathKind.Magic
-                    : DeathKind.Sword;
-                float strike = AttackAnimTime + hitIndex * 0.25f;
-                PlayStrikeFx(r.king, r.rangeHitters, strike);
+                bool dead = r.stats.IsDead;
+                finishers.TryGetValue(r.king, out GridUnit finisher);
+                float strike = _attackAnimTime + hitIndex * _hitStagger;
+                PlayStrikeFx(r.king, r.rangeHitters, strike, finisher, !dead);
                 if (r.squasher != null)
                 {
-                    float impact = Squash(r.squasher, r.king, kr, death, r.push, hitIndex * 0.35f);
-                    KingHit?.Invoke(r.king, r.damage, impact + 0.05f);
+                    float impact = Squash(r.squasher, r.king, kr, dead, hitIndex * _squashStagger);
                     busy = Mathf.Max(busy, impact + 1.6f);
                     strike = impact + 0.05f;
                 }
-                else
+                else if (finisher != null && kr != null && finisher.TryGetComponent(out UnitReactions fr))
                 {
-                    if (kr != null) kr.PlayHit(strike, death, r.push);
-                    KingHit?.Invoke(r.king, r.damage, strike);
+                    strike = fr.PlayFinisher(kr, hitIndex * _hitStagger);
                 }
-                if (r.stats.IsDead)
+                else if (kr != null)
                 {
-                    busy = Mathf.Max(busy, 3.2f);
+                    if (dead)
+                    {
+                        // Mọi quân trúng đã kết liễu King khác: King vẫn văng theo hướng quân gần nhất, không có đòn riêng.
+                        Vector3 d = r.king.transform.position - Nearest(r.king, r.rangeHitters, null).transform.position;
+                        DOVirtual.DelayedCall(strike, () => kr.PlayKnockedOff(new Vector3(d.x, 0f, d.z).normalized));
+                    }
+                    else kr.PlayHit(strike);
+                }
+                KingHit?.Invoke(r.king, r.damage, strike);
+                if (dead)
+                {
+                    busy = Mathf.Max(busy, strike + _deathBusy);
                     if (lastKill == null || strike >= lastKillTime) { lastKill = r.king; lastKillTime = strike; }
                 }
                 hitIndex++;
@@ -228,13 +250,26 @@ namespace GridBattle
             StateChanged?.Invoke();
         }
 
-        private const float AttackAnimTime = 0.3f;
+        /// <summary>Quân trong 'units' gần King nhất, bỏ qua các quân trong 'exclude'. Null nếu không còn quân nào.</summary>
+        private static GridUnit Nearest(GridUnit king, List<GridUnit> units, IEnumerable<GridUnit> exclude)
+        {
+            var skip = exclude != null ? new HashSet<GridUnit>(exclude) : null;
+            GridUnit best = null;
+            float bestDist = float.MaxValue;
+            foreach (GridUnit u in units)
+            {
+                if (skip != null && skip.Contains(u)) continue;
+                float dist = (u.transform.position - king.transform.position).sqrMagnitude;
+                if (dist < bestDist) { bestDist = dist; best = u; }
+            }
+            return best;
+        }
 
         /// <summary>
         /// Attacker đè bẹp King rồi nảy sang 1 ô trống trong vùng 3x3 (không có attacker khác, không có King còn sống,
         /// để lượt sau không tự đè tiếp). Không còn ô thì đứng lại. Trả thời điểm va chạm (giây) kể từ bây giờ.
         /// </summary>
-        private float Squash(GridUnit unit, GridUnit king, UnitReactions kr, DeathKind death, Vector3 push, float delay)
+        private float Squash(GridUnit unit, GridUnit king, UnitReactions kr, bool lethal, float delay)
         {
             GridSystem grid = unit.Grid;
             Vector3 kingFeet = king.transform.position;
@@ -244,28 +279,29 @@ namespace GridBattle
             var ar = unit.GetComponent<UnitReactions>();
             float kingHeight = kr != null ? kr.TopHeight : 1f;
             float impact = ar != null ? ar.PlaySquashAndBounce(kingFeet, kingHeight, delay) : delay;
-            if (kr != null) kr.PlaySquashed(impact, death, push);
+            if (kr != null) kr.PlaySquashed(impact, lethal);
             return impact;
         }
 
         /// <summary>
         /// Hiệu ứng đòn đánh theo tầm, chạm King đúng lúc 'strike': Mage bắn tia phép từ ngọc trên gậy,
-        /// Knight để lại vệt kiếm chém ngang qua King.
+        /// Knight để lại vệt kiếm chém ngang qua King. comic = false: không hiện chữ manga (lượt King chết).
         /// </summary>
-        private static void PlayStrikeFx(GridUnit king, List<GridUnit> hitters, float strike)
+        private static void PlayStrikeFx(GridUnit king, List<GridUnit> hitters, float strike, GridUnit finisher, bool comic)
         {
             Vector3 body = king.transform.position + Vector3.up * 0.55f;
             foreach (GridUnit a in hitters)
             {
+                if (a == finisher) continue; // quân kết liễu tự chạy hiệu ứng trong clip
                 if (a.Kind == UnitKind.Mage)
                 {
                     const float travel = 0.28f;
                     Vector3 from = a.transform.position + Vector3.up * 0.9f;
-                    CartoonFx.MagicBolt(from, body, Mathf.Max(0f, strike - travel), travel);
+                    CartoonFx.MagicBolt(from, body, Mathf.Max(0f, strike - travel), travel, comic);
                 }
                 else if (a.Kind == UnitKind.Knight)
                 {
-                    CartoonFx.Slash(body, king.transform.position - a.transform.position, strike - 0.04f);
+                    CartoonFx.Slash(body, king.transform.position - a.transform.position, strike - 0.04f, comic);
                 }
             }
         }

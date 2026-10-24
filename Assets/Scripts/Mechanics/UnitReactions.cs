@@ -3,14 +3,13 @@ using UnityEngine;
 
 namespace GridBattle
 {
-    /// <summary>Cách King chết: bị đè bẹp -> bắn lên trời; Mage -> tan rã do phép; Knight -> kiếm chém văng ngang.</summary>
-    public enum DeathKind { None, Sky, Magic, Sword }
-
     /// <summary>
     /// Phản ứng/hoạt ảnh procedural cartoon của 1 quân (model chưa có Animator Controller nên dùng tween):
     /// xuất hiện, bị cầm lên (giật mình rồi giãy, đung đưa theo hướng kéo), rơi xuống nảy + bụi,
     /// thở nhẹ khi đứng yên, lao lên tấn công, trúng đòn (rung + nháy đỏ), bị đè bẹp (thành bánh kếp rồi bật lại),
-    /// đè bẹp người khác rồi nảy đi, bị đánh văng khỏi bàn (bay mất hút thành 1 ngôi sao).
+    /// đè bẹp người khác rồi nảy đi, bị đè chết thì bắn lên trời (bay mất hút thành 1 ngôi sao).
+    /// Đòn kết liễu từ xa (Knight chém mạnh / Mage tụ điện zap) và King bị đánh văng khỏi sân chạy bằng Animator clip
+    /// (CartoonAssets.UnitAnimator); clip gọi Fx("...") qua Animation Event để bật hiệu ứng đúng khung hình.
     ///
     /// Mọi chuyển động chạy trên object con "Visual" (bọc các con của model), nên transform gốc
     /// vẫn giữ đúng vị trí ô và hướng mặt - AttackRange đọc transform.forward của gốc.
@@ -21,6 +20,9 @@ namespace GridBattle
         private static readonly int ColorId = Shader.PropertyToID("_Color");
 
         private Transform _visual;
+        private Animator _anim;
+        private UnitReactions _victim;   // King sẽ bị văng khi đòn kết liễu trúng (event "impact")
+        private Vector3 _victimDir;
         private Renderer[] _renderers;
         private MaterialPropertyBlock _block;
         private Vector3 _baseScale = Vector3.one;
@@ -175,10 +177,8 @@ namespace GridBattle
             s.Append(_visual.DOLocalMove(Vector3.zero, 0.3f).SetEase(Ease.OutBack));
         }
 
-        /// <summary>
-        /// Trúng đòn: rung, giật lùi, nháy đỏ, sao bắn ra. death != None thì chết theo kiểu đó ngay sau cú đánh.
-        /// </summary>
-        public void PlayHit(float delay, DeathKind death, Vector3 push)
+        /// <summary>Trúng đòn (không chết): rung, giật lùi, nháy đỏ, sao bắn ra.</summary>
+        public void PlayHit(float delay)
         {
             // Delayed call không gắn target _visual, để DOKill bên trong không tự huỷ chính nó.
             DOVirtual.DelayedCall(delay, () =>
@@ -191,18 +191,137 @@ namespace GridBattle
                 _flashUntil = Time.time + 0.35f;
                 Sfx.Play(SfxId.Punch);
                 CartoonFx.StarBurst(Feet + Vector3.up * TopHeight * 0.7f, new Color(1f, 0.85f, 0.3f));
-                if (death != DeathKind.None) DOVirtual.DelayedCall(death == DeathKind.Sword ? 0.12f : 0.3f, () => Die(death, push));
             });
         }
 
-        private void Die(DeathKind kind, Vector3 push)
+        // ---------------- Đòn kết liễu (Animator) ----------------
+
+        /// <summary>Animator gắn lúc cần: chỉ bật khi chạy clip, để không đè các hoạt ảnh procedural.</summary>
+        private Animator Anim
         {
-            switch (kind)
+            get
             {
-                case DeathKind.Sky: LaunchToSky(); break;
-                case DeathKind.Magic: Disintegrate(); break;
-                default: KnockOut(push); break;
+                if (_anim != null) return _anim;
+                _anim = gameObject.AddComponent<Animator>();
+                _anim.runtimeAnimatorController = CartoonAssets.Instance.UnitAnimator;
+                _anim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                _anim.enabled = false;
+                return _anim;
             }
+        }
+
+        private AnimationClip Clip(string name)
+        {
+            foreach (AnimationClip c in Anim.runtimeAnimatorController.animationClips)
+                if (c.name == name) return c;
+            return null;
+        }
+
+        /// <summary>Thời điểm (giây) của Animation Event Fx(fx) trong clip, 0 nếu không có.</summary>
+        private float EventTime(string clip, string fx)
+        {
+            AnimationClip c = Clip(clip);
+            if (c != null)
+                foreach (AnimationEvent e in c.events)
+                    if (e.stringParameter == fx) return e.time;
+            return 0f;
+        }
+
+        private void PlayClip(string trigger)
+        {
+            _visual.DOKill();
+            _visual.localPosition = Vector3.zero;
+            _visual.localRotation = Quaternion.identity;
+            _visual.localScale = _baseScale;
+            Anim.enabled = true;
+            Anim.SetTrigger(trigger);
+        }
+
+        /// <summary>
+        /// Đòn kết liễu sau 'delay': Knight chém thật mạnh (PowerSlash), Mage tụ điện rồi zap (ZapCharge).
+        /// Lúc trúng (event "impact" trong clip) King 'victim' bị đánh văng theo hướng từ quân này tới King.
+        /// Trả thời điểm trúng (giây kể từ bây giờ) để HUD hiện damage / slow-mo đúng lúc.
+        /// </summary>
+        public float PlayFinisher(UnitReactions victim, float delay)
+        {
+            string trigger = TryGetComponent(out GridUnit u) && u.Kind == UnitKind.Mage ? "ZapCharge" : "PowerSlash";
+            _victim = victim;
+            Vector3 d = victim.transform.position - transform.position;
+            _victimDir = new Vector3(d.x, 0f, d.z).normalized;
+            DOVirtual.DelayedCall(delay, () =>
+            {
+                if (this == null) return;
+                _held = false;
+                _scripted = true;
+                PlayClip(trigger); // clip tự kết thúc bằng event "end"
+            });
+            return delay + EventTime(trigger, "impact");
+        }
+
+        /// <summary>Bị đòn kết liễu: quay lưng về hướng bị đánh rồi chạy clip KnockedOff (nảy trên sân, văng xuống biển).</summary>
+        public void PlayKnockedOff(Vector3 dir)
+        {
+            if (this == null || _dead) return;
+            _dead = true;
+            _held = false;
+            _scripted = true;
+            SetWisp(false);
+            if (dir != Vector3.zero) transform.rotation = Quaternion.LookRotation(dir); // clip bay theo +Z local
+            Sfx.Play(SfxId.Punch, 1f, 0f);
+            Sfx.Play(SfxId.SlideWhistle, 0.7f, 0.05f, 0.05f);
+            if (CameraRig.Instance != null) CameraRig.Instance.Shake(0.3f, 0.3f);
+            CartoonFx.StarBurst(Feet + Vector3.up * TopHeight * 0.5f, Color.white, 16, 7f);
+            CartoonFx.Comic("ko", Feet + Vector3.up * TopHeight);
+            PlayClip("KnockedOff");
+        }
+
+        /// <summary>Animation Event của các clip: Fx("tên") bật hiệu ứng / âm thanh đúng khung hình.</summary>
+        public void Fx(string id)
+        {
+            switch (id)
+            {
+                case "charge":
+                    Sfx.Play(SfxId.Magic, 1f, 0f);
+                    CartoonFx.ZapCharge(Feet + Vector3.up * 0.9f);
+                    break;
+                case "impact":
+                    FinisherImpact();
+                    break;
+                case "thud":
+                    Sfx.Play(SfxId.Thud, 0.8f);
+                    CartoonFx.Puff(_visual.position + Vector3.up * 0.05f, 0.9f, 10);
+                    break;
+                case "end":
+                    // Hết clip đòn kết liễu: tắt Animator, trả quyền lại cho hoạt ảnh procedural.
+                    Anim.enabled = false;
+                    ResetVisual();
+                    _scripted = false;
+                    break;
+                case "splash":
+                    CartoonFx.Splash(_visual.position);
+                    Sfx.Play(SfxId.Splash, 1f, 0.05f);
+                    _visual.gameObject.SetActive(false);
+                    break;
+            }
+        }
+
+        private void FinisherImpact()
+        {
+            if (_victim == null) return;
+            Vector3 body = _victim.transform.position + Vector3.up * _victim.TopHeight * 0.5f;
+            if (TryGetComponent(out GridUnit u) && u.Kind == UnitKind.Mage)
+            {
+                Sfx.Play(SfxId.Zap, 1f, 0f);
+                CartoonFx.Lightning(Feet + Vector3.up * 0.9f, body);
+                CartoonFx.StarBurst(body, new Color(0.45f, 0.95f, 1f), 20, 6f);
+                CartoonFx.StarBurst(body, new Color(1f, 0.95f, 0.4f), 12, 4f);
+            }
+            else
+            {
+                CartoonFx.Slash(body, _victimDir, 0f, comic: false, size: 1.8f);
+            }
+            _victim.PlayKnockedOff(_victimDir);
+            _victim = null;
         }
 
         // ---------------- Đè bẹp ----------------
@@ -262,9 +381,9 @@ namespace GridBattle
 
         /// <summary>
         /// Bị đè bẹp lúc 'impactDelay': dẹp lép thành bánh kếp, nằm rung rinh, rồi "bụp" bật lại + choáng váng.
-        /// death = Sky: thay vì bật lại, bánh kếp bung như lò xo bắn King thẳng lên trời.
+        /// launch: thay vì bật lại, bánh kếp bung như lò xo bắn King thẳng lên trời (bị đè chết).
         /// </summary>
-        public void PlaySquashed(float impactDelay, DeathKind death, Vector3 push)
+        public void PlaySquashed(float impactDelay, bool launch)
         {
             DOVirtual.DelayedCall(impactDelay, () =>
             {
@@ -290,7 +409,7 @@ namespace GridBattle
                 s.Append(_visual.DOPunchScale(new Vector3(0.25f, 0f, -0.25f), 0.45f, 6, 0.6f));
                 s.Join(_visual.DOShakeRotation(0.45f, new Vector3(0f, 25f, 0f), 12, 90f, false));
                 s.AppendInterval(0.35f);
-                if (death == DeathKind.Sky)
+                if (launch)
                 {
                     s.OnComplete(LaunchToSky);
                     return;
@@ -300,12 +419,8 @@ namespace GridBattle
                 s.Append(_visual.DOScale(new Vector3(b.x * 0.7f, b.y * 1.5f, b.z * 0.7f), 0.12f).SetEase(Ease.OutQuad));
                 s.Append(_visual.DOScale(b, 0.7f).SetEase(Ease.OutElastic));
                 s.Join(_visual.DOShakeRotation(1.2f, new Vector3(10f, 0f, 18f), 6, 90f, true));
-                s.InsertCallback(0.95f, () => CartoonFx.DizzyStars(transform, Vector3.up * (TopHeight + 0.15f), death != DeathKind.None ? 0.6f : 2.2f));
-                s.OnComplete(() =>
-                {
-                    _scripted = false;
-                    if (death != DeathKind.None) Die(death, push);
-                });
+                s.InsertCallback(0.95f, () => CartoonFx.DizzyStars(transform, Vector3.up * (TopHeight + 0.15f), 2.2f));
+                s.OnComplete(() => _scripted = false);
             });
         }
 
@@ -347,116 +462,6 @@ namespace GridBattle
             {
                 CartoonFx.Twinkle(_visual.position);
                 Sfx.Play(SfxId.Ding, 0.9f, 0f);
-                _visual.gameObject.SetActive(false);
-            });
-        }
-
-        // ---------------- Chết: tan rã do phép (bị Mage giết) ----------------
-
-        /// <summary>Phát sáng tím-xanh, lơ lửng, run bần bật rồi tan thành hạt phép xoáy bay lên.</summary>
-        public void Disintegrate()
-        {
-            if (this == null || _dead) return;
-            _dead = true;
-            _held = false;
-            _scripted = true;
-            SetWisp(false);
-            ResetVisual();
-            Vector3 b = _baseScale;
-            Color a = new(0.55f, 0.35f, 1f), c = new(0.3f, 0.95f, 1f);
-
-            Sfx.Play(SfxId.Magic, 1f, 0f);
-            Sequence s = DOTween.Sequence().SetTarget(_visual);
-            // Bị nhấc bổng lên bởi phép, run bần bật, nháy tím-xanh.
-            s.Append(_visual.DOLocalMoveY(0.35f / Mathf.Max(transform.lossyScale.y, 0.001f), 0.5f).SetEase(Ease.OutQuad));
-            s.Join(_visual.DOShakeRotation(0.9f, new Vector3(8f, 25f, 8f), 30, 90f, false));
-            s.Join(DOVirtual.Float(0f, 1f, 0.9f, k => SetTint(Color.Lerp(a, c, Mathf.PingPong(k * 6f, 1f)) * (1f + k))));
-            s.InsertCallback(0.2f, () => CartoonFx.MagicDissolve(Feet + Vector3.up * TopHeight * 0.5f, TopHeight, 0.5f));
-            // Tan rã: bẹp ngang, dẹt mỏng rồi biến mất trong tia sáng.
-            s.Append(_visual.DOScale(new Vector3(b.x * 1.25f, b.y * 1.25f, b.z * 1.25f), 0.12f));
-            s.AppendCallback(() =>
-            {
-                CartoonFx.MagicDissolve(Feet + Vector3.up * TopHeight * 0.5f, TopHeight, 1f);
-                Sfx.Play(SfxId.Poof, 0.8f, 0f);
-            });
-            s.Append(_visual.DOScale(new Vector3(0f, b.y * 1.6f, 0f), 0.35f).SetEase(Ease.InBack));
-            s.AppendCallback(() =>
-            {
-                CartoonFx.Comic("ko", Feet + Vector3.up * TopHeight * 0.8f);
-                _visual.gameObject.SetActive(false);
-            });
-        }
-
-        // ---------------- Bị đánh văng ----------------
-
-        /// <summary>
-        /// Bị đánh văng SANG NGANG (theo chiều ngang màn hình, phía bị đẩy): bay là là, lăn lông lốc, nảy 3 lần trên bàn/cỏ,
-        /// văng qua mép đảo rồi rơi tõm xuống biển.
-        /// </summary>
-        public void KnockOut(Vector3 push)
-        {
-            if (this == null || _dead) return;
-            SetWisp(false);
-            _dead = true;
-            _held = false;
-            _scripted = true;
-            ResetVisual();
-
-            Camera cam = Camera.main;
-            Vector3 right = cam != null ? Vector3.ProjectOnPlane(cam.transform.right, Vector3.up).normalized : Vector3.right;
-            if (right == Vector3.zero) right = Vector3.right;
-            float side = Vector3.Dot(push, right);
-            Vector3 dir = right * (Mathf.Abs(side) > 0.01f ? Mathf.Sign(side) : (Random.value < 0.5f ? -1f : 1f));
-            Vector3 rollAxis = Vector3.Cross(Vector3.up, dir); // lăn quanh trục vuông góc hướng bay
-
-            Vector3 start = _visual.position;
-            // Quãng đường đủ ra khỏi đảo (bán kính ~20) tính từ vị trí hiện tại theo hướng bay.
-            float total = Mathf.Max(12f, 21f - Vector3.Dot(new Vector3(start.x, 0f, start.z), dir));
-            float[] part = { 0.36f, 0.28f, 0.2f };
-            float[] height = { 1.5f, 0.9f, 0.5f };
-            float[] time = { 0.42f, 0.34f, 0.26f };
-            const float flyOff = 0.5f;
-            float duration = 0.06f + time[0] + time[1] + time[2] + flyOff;
-
-            Sfx.Play(SfxId.Punch, 1f, 0f);
-            Sfx.Play(SfxId.SlideWhistle, 0.7f, 0.05f, 0.05f);
-            if (CameraRig.Instance != null) CameraRig.Instance.Shake(0.2f, 0.25f);
-            CartoonFx.StarBurst(start + Vector3.up * TopHeight * 0.5f, Color.white, 12, 6f);
-            CartoonFx.Comic("ko", start + Vector3.up * TopHeight);
-
-            Quaternion rot0 = _visual.rotation;
-            Sequence s = DOTween.Sequence().SetTarget(_visual);
-            // Lấy đà: méo người về phía bị đánh.
-            s.Append(_visual.DOScale(new Vector3(_baseScale.x * 0.7f, _baseScale.y * 1.2f, _baseScale.z * 0.7f), 0.06f));
-            s.Append(_visual.DOScale(_baseScale, 0.15f));
-
-            Vector3 p = start;
-            float t = 0.06f;
-            for (int i = 0; i < 3; i++)
-            {
-                Vector3 next = p + dir * total * part[i];
-                next.y = i == 0 ? start.y : -0.2f; // lần đầu chạm mặt bàn, sau đó là cỏ
-                s.Insert(t, _visual.DOJump(next, height[i], 1, time[i]).SetEase(Ease.Linear));
-                t += time[i];
-                float vol = 1f - i * 0.25f;
-                s.InsertCallback(t, () =>
-                {
-                    Sfx.Play(SfxId.Thud, vol);
-                    CartoonFx.Puff(_visual.position + Vector3.up * 0.05f, 0.9f, 10);
-                });
-                p = next;
-            }
-            // Văng qua mép đảo, rơi tõm xuống biển.
-            Vector3 water = p + dir * 4f;
-            water.y = -2.3f;
-            s.Insert(t, _visual.DOJump(water, 0.8f, 1, flyOff).SetEase(Ease.InQuad));
-            // Lăn lông lốc suốt đường bay.
-            s.Insert(0.06f, DOVirtual.Float(0f, 1f, duration - 0.06f, k =>
-                _visual.rotation = Quaternion.AngleAxis(-k * 1080f, rollAxis) * rot0).SetEase(Ease.OutQuad));
-            s.InsertCallback(duration, () =>
-            {
-                CartoonFx.Splash(_visual.position);
-                Sfx.Play(SfxId.Splash, 1f, 0.05f);
                 _visual.gameObject.SetActive(false);
             });
         }

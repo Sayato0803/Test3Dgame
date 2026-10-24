@@ -18,6 +18,13 @@ namespace GridBattle
         public Color OutlineColor = new(0.09f, 0.06f, 0.12f, 1f);
         public float OutlineWidth = 0.0035f;
 
+        [Header("Đòn kết liễu")]
+        [Tooltip("Controller gắn lên quân lúc cần (trigger PowerSlash / ZapCharge / KnockedOff). Clip có event Fx(\"impact\") quyết định lúc trúng.")]
+        public RuntimeAnimatorController UnitAnimator;
+        [Tooltip("Hạt điện tụ quanh gậy Mage trước khi zap.")]
+        public ParticleSystem ZapChargeFx;
+        public LightningBolt LightningPrefab;
+
         private static CartoonAssets _instance;
         private static bool _loaded;
 

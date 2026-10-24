@@ -6,6 +6,7 @@ namespace GridBattle
     /// <summary>
     /// 1 camera chính bay mượt giữa các điểm neo (Cam1..Cam5 trong scene, được tắt đi và chỉ dùng làm vị trí/góc/FOV).
     /// Đường bay là cung Bezier vòng qua phía trên tâm sân, nên đổi sang bàn đối diện sẽ thấy camera lượn quanh sân.
+    /// Trong lúc bay camera luôn nhìn xuống sân (điểm nhìn trượt từ chỗ góc cũ nhìn sang chỗ góc mới nhìn).
     /// </summary>
     public class CameraRig : MonoBehaviour
     {
@@ -15,6 +16,7 @@ namespace GridBattle
         [SerializeField] private Vector3 _orbitCenter = Vector3.zero;
         [SerializeField] private float _duration = 1.1f;
         [SerializeField] private float _arcHeight = 3f;
+        [SerializeField, Range(0f, 1f)] private float _whooshVolume = 0.35f;
 
         public Camera Camera => _camera;
 
@@ -90,7 +92,7 @@ namespace GridBattle
             _tween?.Kill();
             _camera.transform.DOKill(true); // dừng rung camera (nếu có) trước khi bay
             CurrentIndex = index;
-            Sfx.Play(SfxId.CameraWhoosh, 1f, 0.05f);
+            Sfx.Play(SfxId.CameraWhoosh, _whooshVolume, 0.05f);
 
             Transform t = _camera.transform;
             Vector3 fromPos = t.position;
@@ -101,6 +103,7 @@ namespace GridBattle
             Quaternion toRot = a.rotation;
             float toFov = _anchors[index].fieldOfView;
             Vector3 control = ArcControlPoint(fromPos, toPos);
+            Vector3 fromLook = GroundPoint(t), toLook = GroundPoint(a);
 
             float duration = _duration / Mathf.Max(0.1f, GameSettings.CameraSpeed);
             _tween = DOVirtual.Float(0f, 1f, duration, k =>
@@ -108,9 +111,19 @@ namespace GridBattle
                 // Bezier bậc 2: from -> control -> to.
                 float u = 1f - k;
                 t.position = u * u * fromPos + 2f * u * k * control + k * k * toPos;
-                t.rotation = Quaternion.Slerp(fromRot, toRot, k);
+                // Hướng "lên" lấy từ slerp để góc nhìn thẳng xuống (Cam2/Cam5) không bị lật.
+                Vector3 up = Quaternion.Slerp(fromRot, toRot, k) * Vector3.up;
+                t.rotation = Quaternion.LookRotation(Vector3.Lerp(fromLook, toLook, k) - t.position, up);
                 _camera.fieldOfView = Mathf.Lerp(fromFov, toFov, k);
             }).SetEase(Ease.InOutSine);
+        }
+
+        /// <summary>Điểm trên mặt sân mà camera đang nhìn vào (giao của tia nhìn với mặt phẳng tâm sân).</summary>
+        private Vector3 GroundPoint(Transform cam)
+        {
+            Vector3 f = cam.forward;
+            if (f.y > -0.01f) return _orbitCenter;
+            return cam.position + f * ((cam.position.y - _orbitCenter.y) / -f.y);
         }
 
         /// <summary>

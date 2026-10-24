@@ -148,7 +148,7 @@ namespace GridBattle
         }
 
         /// <summary>Tia phép: quả cầu sáng xanh-tím bay vòng cung từ 'from' tới 'to', kéo đuôi lấp lánh, nổ sao khi trúng.</summary>
-        public static void MagicBolt(Vector3 from, Vector3 to, float delay, float travel)
+        public static void MagicBolt(Vector3 from, Vector3 to, float delay, float travel, bool comic = true)
         {
             CartoonAssets a = CartoonAssets.Instance;
             if (a == null || a.StarSprite == null) return;
@@ -187,14 +187,14 @@ namespace GridBattle
                 {
                     StarBurst(to, new Color(0.45f, 0.95f, 1f), 12, 4f);
                     StarBurst(to, new Color(0.65f, 0.4f, 1f), 8, 3f);
-                    Comic("zap", to + Vector3.up * 0.6f);
+                    if (comic) Comic("zap", to + Vector3.up * 0.6f);
                     Object.Destroy(go);
                 });
             });
         }
 
-        /// <summary>Vệt kiếm chém: cung trắng-vàng quét chéo qua King rồi tan, kèm tiếng "vút - keng".</summary>
-        public static void Slash(Vector3 center, Vector3 dir, float delay)
+        /// <summary>Vệt kiếm chém: cung trắng-vàng quét chéo qua King rồi tan, kèm tiếng "vút - keng". size phóng to cả vệt (đòn kết liễu).</summary>
+        public static void Slash(Vector3 center, Vector3 dir, float delay, bool comic = true, float size = 1f)
         {
             CartoonAssets a = CartoonAssets.Instance;
             if (a == null || a.PuffMaterial == null) return;
@@ -218,7 +218,7 @@ namespace GridBattle
                 {
                     float t = i / (float)(n - 1);
                     float ang = Mathf.Lerp(130f, -50f, t) * Mathf.Deg2Rad;
-                    Vector3 p = center + (right * side * Mathf.Cos(ang) + up * Mathf.Sin(ang)) * 0.7f - fwd * 0.3f;
+                    Vector3 p = center + (right * side * Mathf.Cos(ang) + up * Mathf.Sin(ang)) * 0.7f * size - fwd * 0.3f;
                     lr.SetPosition(i, p);
                 }
                 var width = new AnimationCurve(new Keyframe(0f, 0f), new Keyframe(0.5f, 1f), new Keyframe(1f, 0f));
@@ -230,45 +230,31 @@ namespace GridBattle
                 lr.colorGradient = grad;
                 GridBattle.Sfx.Play(GridBattle.SfxId.Slash, 1f, 0.08f);
                 Sequence s = DOTween.Sequence().SetTarget(go);
-                s.Append(DOTween.To(() => lr.widthMultiplier, w => lr.widthMultiplier = w, 0.6f, 0.05f));
+                s.Append(DOTween.To(() => lr.widthMultiplier, w => lr.widthMultiplier = w, 0.6f * size, 0.05f));
                 s.AppendInterval(0.12f);
                 s.Append(DOTween.To(() => lr.widthMultiplier, w => lr.widthMultiplier = w, 0f, 0.25f));
                 s.OnComplete(() => Object.Destroy(go));
-                StarBurst(center, new Color(1f, 0.95f, 0.75f), 8, 4.5f);
-                Comic("sweep", center + Vector3.up * 0.6f);
+                StarBurst(center, new Color(1f, 0.95f, 0.75f), Mathf.RoundToInt(8 * size), 4.5f * size);
+                if (comic) Comic("sweep", center + Vector3.up * 0.6f);
             });
         }
 
-        /// <summary>Tan rã do phép: hạt tím-xanh xoáy bay lên. power 0..1 (nhỏ = rò rỉ, 1 = nổ tung).</summary>
-        public static void MagicDissolve(Vector3 center, float height, float power)
+        /// <summary>Hạt điện tụ lại ở 'pos' (Mage chuẩn bị zap). Thông số nằm trong prefab CartoonAssets.ZapChargeFx.</summary>
+        public static void ZapCharge(Vector3 pos)
         {
             CartoonAssets a = CartoonAssets.Instance;
-            if (a == null || a.StarMaterial == null) return;
-            ParticleSystem ps = Create("MagicDissolve", center, a.StarMaterial);
-            var main = ps.main;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(0.6f, 1.2f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(0.5f + 1.5f * power, 1.5f + 3f * power);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.1f, 0.28f);
-            main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.6f, 0.35f, 1f), new Color(0.35f, 1f, 1f));
-            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
-            main.gravityModifier = -0.35f;
-            var shape = ps.shape;
-            shape.shapeType = ParticleSystemShapeType.Sphere;
-            shape.radius = 0.35f * height;
-            var vel = ps.velocityOverLifetime;
-            vel.enabled = true;
-            vel.space = ParticleSystemSimulationSpace.World;
-            vel.orbitalY = new ParticleSystem.MinMaxCurve(4f);
-            vel.y = new ParticleSystem.MinMaxCurve(1.2f);
-            var rot = ps.rotationOverLifetime;
-            rot.enabled = true;
-            rot.z = new ParticleSystem.MinMaxCurve(-5f, 5f);
-            var size = ps.sizeOverLifetime;
-            size.enabled = true;
-            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0, 0.4f), new Keyframe(0.3f, 1.2f), new Keyframe(1, 0f)));
-            ps.Emit(Mathf.RoundToInt(20 + 40 * power));
-            Object.Destroy(ps.gameObject, 1.8f);
-            if (power >= 1f && a.PuffMaterial != null) Puff(center, 1.0f, 10);
+            if (a == null || a.ZapChargeFx == null) return;
+            ParticleSystem ps = Object.Instantiate(a.ZapChargeFx, pos, Quaternion.identity);
+            ps.Play();
+            Object.Destroy(ps.gameObject, ps.main.duration + ps.main.startLifetime.constantMax);
+        }
+
+        /// <summary>Tia sét răng cưa nối 'from' tới 'to' (prefab CartoonAssets.LightningPrefab).</summary>
+        public static void Lightning(Vector3 from, Vector3 to)
+        {
+            CartoonAssets a = CartoonAssets.Instance;
+            if (a == null || a.LightningPrefab == null) return;
+            Object.Instantiate(a.LightningPrefab).Fire(from, to);
         }
 
         /// <summary>Nước bắn tung toé khi rơi xuống biển.</summary>

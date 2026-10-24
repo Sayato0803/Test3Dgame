@@ -40,6 +40,9 @@ namespace GridBattle
         [SerializeField] private Image _koStamp;
         [SerializeField] private RectTransform _hpRoot;
 
+        [Tooltip("F1 tắt / bật các canvas này (HUD + tay bài).")]
+        [SerializeField] private Canvas[] _hideOnF1;
+
         [Header("Prefab")]
         [SerializeField] private Slider _hpBarPrefab;
         [SerializeField] private Text _damageTextPrefab;
@@ -73,6 +76,7 @@ namespace GridBattle
         private GamePhase _lastPhase = (GamePhase)(-1);
         private Player _lastPlayer;
         private bool _draggingLastFrame;
+        private bool _hudHidden;
 
         public bool IsPaused { get; private set; }
 
@@ -133,6 +137,7 @@ namespace GridBattle
             // Esc khi đang kéo quân là để huỷ kéo (GridPlacer) -> không mở pause ở frame đó.
             bool dragging = _placer != null && _placer.IsDragging;
             if (Input.GetKeyDown(KeyCode.Escape) && !dragging && !_draggingLastFrame) TogglePause();
+            if (Input.GetKeyDown(KeyCode.F1)) ToggleHud();
 
             if (_phases != null && _phases.CurrentPlayer != null)
             {
@@ -369,8 +374,16 @@ namespace GridBattle
 
         // ---------------- Pause ----------------
 
+        public void ToggleHud()
+        {
+            _hudHidden = !_hudHidden;
+            foreach (Canvas c in _hideOnF1)
+                if (c != null) c.enabled = !_hudHidden;
+        }
+
         public void TogglePause()
         {
+            if (_hudHidden) ToggleHud(); // menu pause nằm trong HUD
             if (_settings.IsOpen) { _settings.Close(); return; }
             if (_phases != null && _phases.Current == GamePhase.GameOver) return;
             SetPaused(!IsPaused);
