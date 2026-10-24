@@ -92,7 +92,7 @@ namespace GridBattle
             return true;
         }
 
-        private void Remove(GridUnit unit)
+        public void Remove(GridUnit unit)
         {
             if (unit.Grid != this) return;
 

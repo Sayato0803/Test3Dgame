@@ -169,6 +169,9 @@ namespace GridBattle
             bool dragging = _placer != null && _placer.IsDragging;
             if (Input.GetKeyDown(KeyCode.Escape) && !dragging && !_draggingLastFrame) TogglePause();
             if (Input.GetKeyDown(KeyCode.F1) && !_phases.IsHandingOver) ToggleHud();
+            // Enter = bấm nút Confirm / End Turn (cùng điều kiện, cùng tiếng click như chuột).
+            if ((Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) && !IsPaused
+                && _submit.gameObject.activeInHierarchy && _submit.interactable) _submit.onClick.Invoke();
             if (_cutscene && !_phases.IsAnimating)
             {
                 _cutscene = false;
@@ -268,6 +271,13 @@ namespace GridBattle
             foreach (GameObject go in _hideOnGameOver) if (go != null) go.SetActive(!over);
 
             _score.text = $"{ScoreLine(_phases.Player1)}\n{ScoreLine(_phases.Player2)}";
+
+            // Màn che đổi người nằm trong HUD: đang ẩn HUD (F1) thì màn che vô hình, không bấm qua được -> kẹt.
+            if (_phases.IsHandingOver && _hudHidden)
+            {
+                _hudHidden = false;
+                ApplyHudVisibility();
+            }
 
             if (_phases.IsHandingOver != _handover.gameObject.activeSelf || (_phases.IsHandingOver && _handover.alpha < 1f))
             {

@@ -13,7 +13,10 @@ namespace GridBattle
 
         private void Awake()
         {
-            if (TryGetComponent(out Button b)) b.onClick.AddListener(() => Sfx.Play(SfxId.UiClick));
+            if (!TryGetComponent(out Button b)) return;
+            b.onClick.AddListener(() => Sfx.Play(SfxId.UiClick));
+            // Click chuột để lại trạng thái Selected -> nút giữ sprite viền focus sang cả lượt người sau.
+            b.onClick.AddListener(() => { if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null); });
         }
 
         public void OnPointerEnter(PointerEventData e)

@@ -236,6 +236,10 @@ namespace GridBattle
             }
             _busyUntil = Time.time + busy;
 
+            // King chết rời ô ngay (hoạt ảnh văng chỉ dùng transform) -> King còn sống được đặt vào ô đó.
+            foreach (var r in results)
+                if (r.stats.IsDead && r.king.IsOnGrid) r.king.Grid.Remove(r.king);
+
             if (_battleReport.Count == reportStart) Report(attacker, "No King was hit.");
 
             if (AllKingsDead(defender))

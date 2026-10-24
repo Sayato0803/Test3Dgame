@@ -17,7 +17,7 @@ GUI nằm sẵn trong scene và prefab: **chỉnh trực tiếp trong Unity Edit
 
 Khung kiểu cartoon (bảng màu Resurrect 64, mẫu `Resources/GUI/ui_buttons/Hybrid.png`): `Image` của panel là **viền** (`panel.png`, tô vàng), object con `Paper` là **mặt container** (`panel_fill.png`, mỗi panel một màu: thanh trên xanh dương, bảng điểm xanh ngọc, pause tím…). Đổi màu ở Color của 2 Image này. Tiêu đề cửa sổ nằm trên object `Ribbon` (dải cạnh nhọn, đổi màu ở Color).
 
-**Giữ Tab** hiện Battle Report: lịch sử cả trận, mỗi dòng ghi `Turn N - P1: ...`; số dòng hiện ở ô `Report Lines` của `GameHud`. **R** (hoặc lăn chuột) xoay quân đang cầm 90°.
+**Giữ Tab** hiện Battle Report: lịch sử cả trận, mỗi dòng ghi `Turn N - P1: ...`; số dòng hiện ở ô `Report Lines` của `GameHud`. **R** (hoặc lăn chuột) xoay quân đang cầm 90°. **Enter** = bấm CONFIRM / END TURN.
 
 **Tutorial:** prefab `Assets/Prefab/UI/TutorialPanel.prefab` (nút TUTORIAL ở Main Menu và menu Pause). Mỗi dòng là object `Row` gồm `Keys` (icon phím / chuột lấy từ `Art/InputIcons/.../Outline/PNG_4x`) + `Label`; thêm dòng = Duplicate 1 `Row` rồi đổi sprite và chữ.
 

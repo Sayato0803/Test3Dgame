@@ -3,6 +3,9 @@
     "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity",
     "com.ivanmurzak.unity.mcp": "1.5.0",
     "com.ivanmurzak.unity.mcp.animation": "2.0.2",
+    "com.ivanmurzak.unity.mcp.cinemachine": "2.0.2",
+    "com.ivanmurzak.unity.mcp.inputsystem": "2.0.2",
+    "com.ivanmurzak.unity.mcp.particlesystem": "2.0.2",
     "com.ivanmurzak.unity.mcp.probuilder": "2.0.2",
     "com.unity.ai.assistant": "2.20.0-pre.2",
     "com.unity.ai.inference": "2.6.1",
@@ -13,6 +16,7 @@
     "com.unity.ide.visualstudio": "2.0.27",
     "com.unity.inputsystem": "1.19.0",
     "com.unity.multiplayer.center": "1.0.0",
+    "com.unity.recorder": "5.1.7",
     "com.unity.render-pipelines.universal": "17.0.4",
     "com.unity.test-framework": "1.6.0",
     "com.unity.timeline": "1.8.12",
@@ -49,10 +53,7 @@
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
-    "com.unity.modules.xr": "1.0.0",
-    "com.ivanmurzak.unity.mcp.cinemachine": "2.0.2",
-    "com.ivanmurzak.unity.mcp.inputsystem": "2.0.2",
-    "com.ivanmurzak.unity.mcp.particlesystem": "2.0.2"
+    "com.unity.modules.xr": "1.0.0"
   },
   "scopedRegistries": [
     {
