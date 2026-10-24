@@ -6,7 +6,7 @@ GUI nằm sẵn trong scene và prefab: **chỉnh trực tiếp trong Unity Edit
 
 | Chỗ | Nội dung |
 |---|---|
-| Scene `GridTest` → `GameUI/HudCanvas` | Trong trận: thanh trên, bảng KINGS, nút CONFIRM, pause, banner, màn đổi lượt, màn thắng, menu tạm dừng |
+| Scene `GridTest` → `GameUI/HudCanvas` | Trong trận: thanh trên, bảng KINGS, nút CONFIRM, pause, màn đổi lượt, màn thắng, menu tạm dừng |
 | Scene `GridTest` → `GameUI/CardHandCanvas` | Vùng tay bài (`Hand`) và bảng xem thẻ (`CardPreview`, chuột phải) |
 | Scene `MainMenu` → `MenuCanvas` | Tiêu đề, phụ đề, nút PLAY / SETTINGS / QUIT |
 | `Assets/Prefab/UI/SettingsPanel.prefab` | Bảng Settings, dùng chung cho menu chính và menu pause |
@@ -17,7 +17,9 @@ GUI nằm sẵn trong scene và prefab: **chỉnh trực tiếp trong Unity Edit
 
 Khung kiểu gỗ & giấy da: `Image` của panel là **viền gỗ**, object con `Paper` (con đầu tiên) là **mặt giấy**. Đổi màu gỗ / giấy ở 2 Image này; chữ trên giấy màu mực nâu, tiêu đề đỏ son.
 
-**F1** trong trận ẩn / hiện toàn bộ HUD + tay bài (danh sách canvas ở ô `Hide On F1` của `GameHud`).
+**F1** trong trận ẩn / hiện toàn bộ HUD + tay bài (danh sách canvas ở ô `Hide On F1` của `GameHud`). Khi có King bị hạ, các canvas này cũng tự ẩn tới hết cảnh kết liễu.
+
+**Nút chữ** dùng chung 1 kiểu: nền `btn_blank_*` (xanh lá = hành động chính, xanh dương = phụ, cam = quay lại, đỏ = thoát), chữ trắng. Khoảng cách chữ tới viền nằm ở Rect Transform của object con `Text` (Left/Right 28, Bottom 14, Top 8); chữ dài tự thu nhỏ nhờ `Best Fit` (Max Size = cỡ chữ gốc).
 
 Các panel ẩn sẵn (pause, settings, màn thắng…) bị tắt trong Hierarchy. Bật tạm để xem, **nhớ tắt lại** trước khi lưu scene.
 
@@ -61,6 +63,21 @@ Chữ đang hiển thị trong scene ở các ô sau chỉ là chữ mẫu, game
 
 Chỉnh trong Play mode để xem ngay, nhưng **Unity bỏ mọi thay đổi khi thoát Play mode**. Ưng rồi thì thoát Play mode và chỉnh lại y như vậy (hoặc chuột phải component → Copy Component, thoát Play, → Paste Component Values).
 
-## 6. Âm thanh
+## 6. Nền màn hình chính (scene `MainMenu`)
+
+| Muốn đổi | Chỉnh ở đâu |
+|---|---|
+| Vị trí / góc / cỡ 3 quân đứng chào | Object `Showcase` → chọn từng quân, kéo bằng Move/Rotate/Scale tool. Thêm quân: kéo prefab model vào `Showcase` rồi thêm vào ô `Showcase Units` của `MainMenu` (bớt quân: xoá khỏi cả hai) |
+| Camera nhìn vào đâu, đứng xa / cao bao nhiêu | Component `MainMenu`: `Look At`, `Orbit Radius`, `Orbit Height`, `Orbit Angle` (hướng đứng quanh điểm nhìn) |
+| Camera đung đưa | `Sway Angle` (0 = đứng yên), `Sway Speed` |
+| Quân xuất hiện / nhảy | `Spawn Delay`, `Stagger` (lệch nhịp giữa các quân), `Hop Every`, `Hop Height` |
+| Cây, đá, hoa, mây, đảo, nước | Object `Environment` (con `Nature`, `Clouds`, `Island`, `Water`): kéo thả / xoá / nhân bản tự do. Mây trôi, cây đung đưa do component trên từng object, chỉnh số trong Inspector |
+| Bầu trời | `Window → Rendering → Lighting → Environment → Skybox Material` (`Assets/Art/Materials/Sky_Cartoon.mat`: đổi màu trên material) |
+| Ánh sáng, màu nắng | `Directional Light` (màu, cường độ, góc), `Rim Light` (viền sáng sau lưng quân) |
+| Độ rực màu, vignette, bloom | `Environment/PostFX` (Volume) → profile `Assets/Art/PostFX_Cartoon.asset` |
+
+Lưu ý: camera do `MainMenu` điều khiển lúc chạy, nên kéo `Main Camera` trong Scene view sẽ bị ghi đè khi Play. Muốn đổi góc thì chỉnh các ô ở trên.
+
+## 7. Âm thanh
 
 Xem `Assets/Audio/Sfx/README.txt`. Tóm tắt: kéo file vào ô tương ứng trong `Assets/Resources/Audio/SfxLibrary.asset`.

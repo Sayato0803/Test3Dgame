@@ -7,8 +7,9 @@ namespace GridBattle
 {
     /// <summary>
     /// HUD trận đấu. UI nằm sẵn trong scene (HudCanvas) / prefab, script chỉ bật/tắt panel và gán chữ:
-    /// thanh trạng thái, bảng số King, thanh máu trên đầu King, nút Xác nhận, báo cáo battle, màn che đổi người, banner phase,
+    /// thanh trạng thái, bảng số King, thanh máu trên đầu King, nút Xác nhận, báo cáo battle, màn che đổi người,
     /// số damage bay lên, hiệu ứng manga khi đòn trúng, slow-mo đòn kết liễu, màn hình thắng, pause menu (Esc) + Cài đặt.
+    /// King bị hạ: ẩn sạch GUI tới khi hoạt ảnh battle xong để thấy trọn cảnh kết liễu. F1: ẩn / hiện GUI bằng tay.
     /// Nút gọi các hàm public qua OnClick trong Inspector.
     /// </summary>
     public class GameHud : MonoBehaviour
@@ -25,8 +26,6 @@ namespace GridBattle
         [SerializeField] private Text _score;
         [SerializeField] private CanvasGroup _report;
         [SerializeField] private Text _reportText;
-        [SerializeField] private CanvasGroup _banner;
-        [SerializeField] private Text _bannerText;
         [SerializeField] private CanvasGroup _handover;
         [SerializeField] private Text _handoverTitle;
         [SerializeField] private Text _tapPrompt;
@@ -40,7 +39,7 @@ namespace GridBattle
         [SerializeField] private Image _koStamp;
         [SerializeField] private RectTransform _hpRoot;
 
-        [Tooltip("F1 tắt / bật các canvas này (HUD + tay bài).")]
+        [Tooltip("Các canvas bị tắt khi bấm F1 và trong cảnh kết liễu (HUD + tay bài).")]
         [SerializeField] private Canvas[] _hideOnF1;
 
         [Header("Prefab")]
@@ -53,11 +52,6 @@ namespace GridBattle
         [SerializeField] private float _gameOverFade = 0.4f;
         [Tooltip("Đợi hiệu ứng King bị đánh văng bay mất hút rồi mới hiện màn thắng.")]
         [SerializeField] private float _gameOverDelay = 3f;
-        [SerializeField] private float _bannerIn = 0.35f;
-        [SerializeField] private float _bannerHold = 0.9f;
-        [SerializeField] private float _bannerOut = 0.3f;
-        [Tooltip("Banner trượt vào từ trái và ra bên phải quãng này (pixel tham chiếu).")]
-        [SerializeField] private float _bannerSlide = 300f;
         [SerializeField] private float _hitstopDuration = 0.08f;
         [SerializeField] private float _hitstopScale = 0.05f;
         [SerializeField] private float _slowMoDuration = 1.4f;
@@ -76,7 +70,8 @@ namespace GridBattle
         private GamePhase _lastPhase = (GamePhase)(-1);
         private Player _lastPlayer;
         private bool _draggingLastFrame;
-        private bool _hudHidden;
+        private bool _hudHidden;     // F1
+        private bool _cutscene;      // đang chạy cảnh kết liễu
 
         public bool IsPaused { get; private set; }
 
@@ -93,6 +88,7 @@ namespace GridBattle
             _phases.StateChanged += Refresh;
             _phases.KingHit += ShowDamage;
             _phases.KingHit += Impact;
+            _phases.KingHit += HideForFinisher;
             _phases.FinalBlow += FinalBlowFx;
         }
 
@@ -102,6 +98,7 @@ namespace GridBattle
             _phases.StateChanged -= Refresh;
             _phases.KingHit -= ShowDamage;
             _phases.KingHit -= Impact;
+            _phases.KingHit -= HideForFinisher;
             _phases.FinalBlow -= FinalBlowFx;
         }
 
@@ -137,7 +134,12 @@ namespace GridBattle
             // Esc khi đang kéo quân là để huỷ kéo (GridPlacer) -> không mở pause ở frame đó.
             bool dragging = _placer != null && _placer.IsDragging;
             if (Input.GetKeyDown(KeyCode.Escape) && !dragging && !_draggingLastFrame) TogglePause();
-            if (Input.GetKeyDown(KeyCode.F1)) ToggleHud();
+            if (Input.GetKeyDown(KeyCode.F1) && !_phases.IsHandingOver) ToggleHud();
+            if (_cutscene && !_phases.IsAnimating)
+            {
+                _cutscene = false;
+                ApplyHudVisibility();
+            }
 
             if (_phases != null && _phases.CurrentPlayer != null)
             {
@@ -200,7 +202,7 @@ namespace GridBattle
             _submit.SetText(_phases.SubmitLabel);
             _submit.gameObject.SetActive(!over);
 
-            bool showReport = phase == GamePhase.End || over;
+            bool showReport = phase == GamePhase.End; // màn WIN không hiện báo cáo
             if (showReport) _reportText.text = string.Join("\n", _phases.BattleReport);
             _score.text = $"{ScoreLine(_phases.Player1)}\n{ScoreLine(_phases.Player2)}";
             if (showReport != _report.gameObject.activeSelf || (showReport && _report.alpha < 1f)) UiFactory.Show(_report, showReport, _fadeDuration);
@@ -231,13 +233,12 @@ namespace GridBattle
                 _gameOver.alpha = 0f;
             }
 
-            // Banner khi đổi phase (sau khi bỏ màn che).
+            // Tiếng chuông khi đổi phase (sau khi bỏ màn che).
             if (!_phases.IsHandingOver && !over && (phase != _lastPhase || p != _lastPlayer))
             {
                 _lastPhase = phase;
                 _lastPlayer = p;
-                ShowBanner($"{p.DisplayName} — {_phases.PhaseName.ToUpper()}" +
-                           (phase == GamePhase.Deploy ? $"\n<size=40>KINGS ON FIELD: {p.Kings.Count}/{_phases.KingsPerPlayer}</size>" : ""));
+                Sfx.Play(SfxId.Chime, 0.8f, 0f);
             }
         }
 
@@ -248,26 +249,6 @@ namespace GridBattle
             foreach (GridUnit k in p.Kings)
                 if (k != null && k.TryGetComponent(out KingStats s) && !s.IsDead) alive++;
             return $"{p.DisplayName}  KINGS {alive}/{_phases.KingsPerPlayer}";
-        }
-
-        private void ShowBanner(string text)
-        {
-            Sfx.Play(SfxId.Chime, 0.8f, 0f);
-            _bannerText.text = text;
-            CanvasGroup g = _banner;
-            g.DOKill();
-            _bannerText.rectTransform.DOKill();
-            g.gameObject.SetActive(true);
-            g.alpha = 0f;
-            _bannerText.rectTransform.anchoredPosition = new Vector2(-_bannerSlide, 0f);
-
-            Sequence s = DOTween.Sequence().SetTarget(g);
-            s.Append(g.DOFade(1f, _bannerIn * 0.7f));
-            s.Join(_bannerText.rectTransform.DOAnchorPosX(0f, _bannerIn).SetEase(Ease.OutCubic));
-            s.AppendInterval(_bannerHold);
-            s.Append(g.DOFade(0f, _bannerOut));
-            s.Join(_bannerText.rectTransform.DOAnchorPosX(_bannerSlide, _bannerOut).SetEase(Ease.InCubic));
-            s.OnComplete(() => g.gameObject.SetActive(false));
         }
 
         /// <summary>Số damage bay lên từ đầu King, xuất hiện đúng lúc hiệu ứng trúng đòn.</summary>
@@ -334,8 +315,6 @@ namespace GridBattle
             {
                 if (king == null || IsPaused) return;
                 float duration = _slowMoDuration; // giây thật
-                _banner.DOKill();
-                _banner.gameObject.SetActive(false); // banner "RESULTS" không đè lên chữ K.O.
                 _slowMoUntil = Time.unscaledTime + duration;
                 Time.timeScale = _slowMoScale;
                 if (CameraRig.Instance != null) CameraRig.Instance.Focus(king.transform.position + Vector3.up * 0.6f);
@@ -377,13 +356,31 @@ namespace GridBattle
         public void ToggleHud()
         {
             _hudHidden = !_hudHidden;
+            ApplyHudVisibility();
+        }
+
+        /// <summary>King bị hạ: ẩn GUI ngay từ lúc quân ra đòn; Update hiện lại khi hoạt ảnh battle xong.</summary>
+        private void HideForFinisher(GridUnit king, int damage, float delay)
+        {
+            if (!king.TryGetComponent(out KingStats s) || !s.IsDead) return;
+            _cutscene = true;
+            ApplyHudVisibility();
+        }
+
+        private void ApplyHudVisibility()
+        {
             foreach (Canvas c in _hideOnF1)
-                if (c != null) c.enabled = !_hudHidden;
+                if (c != null) c.enabled = !_hudHidden && !_cutscene;
         }
 
         public void TogglePause()
         {
-            if (_hudHidden) ToggleHud(); // menu pause nằm trong HUD
+            if (_hudHidden || _cutscene)
+            {
+                // Menu pause nằm trong HUD: pause giữa cảnh kết liễu thì hiện GUI lại luôn.
+                _hudHidden = _cutscene = false;
+                ApplyHudVisibility();
+            }
             if (_settings.IsOpen) { _settings.Close(); return; }
             if (_phases != null && _phases.Current == GamePhase.GameOver) return;
             SetPaused(!IsPaused);

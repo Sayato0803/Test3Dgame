@@ -30,12 +30,27 @@ namespace GridBattle
 
         [Header("Nền 3D")]
         [SerializeField] private Camera _camera;
-        [SerializeField] private GameObject[] _showcaseModels;
-        [SerializeField] private float _unitScale = 0.7f;
+        [Tooltip("Quân trưng bày đặt sẵn trong scene (object Showcase): kéo thả vị trí / góc / scale trực tiếp, thêm bớt tuỳ ý.")]
+        [SerializeField] private Transform[] _showcaseUnits;
+        [Tooltip("Điểm camera nhìn vào và quay quanh.")]
+        [SerializeField] private Vector3 _lookAt = new(0f, 0.9f, 0f);
         [SerializeField] private float _orbitRadius = 6f;
         [SerializeField] private float _orbitHeight = 2.6f;
+        [Tooltip("Hướng đặt camera quanh _lookAt (độ). 180 = đứng phía -Z nhìn sang +Z.")]
+        [SerializeField] private float _orbitAngle = 180f;
+        [Tooltip("Camera đung đưa qua lại chừng này độ cho cảnh không chết. 0 = đứng yên.")]
+        [SerializeField] private float _swayAngle = 4f;
+        [SerializeField] private float _swaySpeed = 0.3f;
+
+        [Header("Quân trưng bày")]
+        [SerializeField] private float _spawnDelay = 0.3f;
+        [Tooltip("Quân sau xuất hiện / nhảy trễ hơn quân trước chừng này.")]
+        [SerializeField] private float _stagger = 0.2f;
+        [SerializeField] private float _hopEvery = 3.5f;
+        [SerializeField] private float _hopHeight = 0.5f;
 
         private readonly List<CharacterRig> _rigs = new();
+        private Vector3 _rowCenter; // mắt các quân dõi theo con trỏ trên mặt phẳng đi qua điểm này
         private bool _angry;
 
         private void Start()
@@ -50,26 +65,24 @@ namespace GridBattle
 
         private void SpawnShowcase()
         {
-            if (_showcaseModels == null) return;
-            int n = _showcaseModels.Length;
-            for (int i = 0; i < n; i++)
+            if (_showcaseUnits == null) return;
+            int n = 0;
+            for (int i = 0; i < _showcaseUnits.Length; i++)
             {
-                if (_showcaseModels[i] == null) continue;
-                GameObject go = Instantiate(_showcaseModels[i]);
-                go.transform.localScale *= _unitScale;
-                ToonStyle.Apply(go);
-                // Đứng thành hàng ở nửa phải màn hình, hơi quay vào giữa.
-                float x = 1.3f + i * 1.5f;
-                go.transform.position = new Vector3(x, 0f, (i - (n - 1) * 0.5f) * 0.4f);
-                go.transform.rotation = Quaternion.Euler(0f, 180f + x * 4f, 0f);
-                var r = go.AddComponent<UnitReactions>();
-                _rigs.Add(go.AddComponent<CharacterRig>());
+                Transform t = _showcaseUnits[i];
+                if (t == null) continue;
+                _rowCenter += t.position;
+                n++;
+                ToonStyle.Apply(t.gameObject);
+                var r = t.gameObject.AddComponent<UnitReactions>();
+                _rigs.Add(t.gameObject.AddComponent<CharacterRig>());
                 r.HideUntilSpawn();
-                // Lần lượt nhảy ra chào sân, sau đó thỉnh thoảng nhảy lên.
-                DOVirtual.DelayedCall(0.3f + i * 0.2f, r.PlaySpawn).SetTarget(this);
-                float period = 3.5f + i * 0.7f;
-                DOVirtual.DelayedCall(1.5f + i * 0.9f, () => Hop(go.transform, r, period)).SetTarget(this);
+                // Lần lượt nhảy ra chào sân, sau đó thỉnh thoảng nhảy lên (lệch nhịp nhau).
+                DOVirtual.DelayedCall(_spawnDelay + i * _stagger, r.PlaySpawn).SetTarget(this);
+                float period = _hopEvery + i * _stagger * 3.5f;
+                DOVirtual.DelayedCall(_spawnDelay + 1.2f + i * _stagger * 4.5f, () => Hop(t, r, period)).SetTarget(this);
             }
+            _rowCenter = n > 0 ? _rowCenter / n + Vector3.up : _lookAt;
         }
 
         private void Hop(Transform t, UnitReactions r, float period)
@@ -78,7 +91,7 @@ namespace GridBattle
             if (!_angry)
             {
                 r.Visual.DOKill(true);
-                r.Visual.DOLocalJump(Vector3.zero, 0.5f, 1, 0.45f).OnComplete(() => r.Land(0f, quiet: true));
+                r.Visual.DOLocalJump(Vector3.zero, _hopHeight, 1, 0.45f).OnComplete(() => r.Land(0f, quiet: true));
             }
             DOVirtual.DelayedCall(period, () => Hop(t, r, period)).SetTarget(this);
         }
@@ -87,14 +100,13 @@ namespace GridBattle
         {
             if (_camera == null) return;
             // Camera đứng trước hàng quân, chỉ đung đưa nhẹ để cảnh không chết.
-            float a = (180f + Mathf.Sin(Time.time * 0.3f) * 4f) * Mathf.Deg2Rad;
-            var target = new Vector3(0f, 0.9f, 0f);
-            _camera.transform.position = target + new Vector3(Mathf.Sin(a) * _orbitRadius, _orbitHeight, Mathf.Cos(a) * _orbitRadius);
-            _camera.transform.LookAt(target);
+            float a = (_orbitAngle + Mathf.Sin(Time.time * _swaySpeed) * _swayAngle) * Mathf.Deg2Rad;
+            _camera.transform.position = _lookAt + new Vector3(Mathf.Sin(a) * _orbitRadius, _orbitHeight, Mathf.Cos(a) * _orbitRadius);
+            _camera.transform.LookAt(_lookAt);
 
             // Điểm con trỏ trên mặt phẳng đứng (vuông góc camera) đi qua hàng quân.
             Ray ray = _camera.ScreenPointToRay(Input.mousePosition);
-            var plane = new Plane(-_camera.transform.forward, new Vector3(2.8f, 1f, 0f));
+            var plane = new Plane(-_camera.transform.forward, _rowCenter);
             Vector3? look = plane.Raycast(ray, out float d) ? ray.GetPoint(d) : null;
             foreach (CharacterRig rig in _rigs)
                 if (rig != null) rig.LookTarget = look;
