@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 38174d6ea35f9754e8865f386f74fdd5, type: 3}
+  m_Name: CartoonAssets
+  m_EditorClassIdentifier: 
+  ToonShader: {fileID: 4800000, guid: 84399b19f91010546a6dfe6c02ae8eb2, type: 3}
+  PuffMaterial: {fileID: 2100000, guid: d376fffc62b90de4c9e673ef3a485ee8, type: 2}
+  StarMaterial: {fileID: 2100000, guid: d840243912f1f3542a04885a4a734e72, type: 2}
+  StarSprite: {fileID: 21300000, guid: e992a9b7d139dc64495fae062fc831a1, type: 3}
+  OutlineColor: {r: 0.09, g: 0.06, b: 0.12, a: 1}
+  OutlineWidth: 0.0035

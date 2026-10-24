@@ -23,7 +23,8 @@ namespace CardScripts.Editor
     ///   + Lá King   -> King (KingEntity.prefab từ King.fbx)
     ///   + Lá Mirror -> Entity Mirror (Mirror.prefab của người dùng)
     /// </summary>
-    [InitializeOnLoad]
+    // Không còn tự chạy khi Unity compile (trước đây ghi đè CardScene + prefab/material mỗi lần reload).
+    // Cần dựng lại thì gọi tay CardSceneBuilder.BuildScene().
     public static class CardSceneBuilder
     {
         private const string ScenePath = "Assets/Scenes/CardScene.unity";
@@ -35,15 +36,6 @@ namespace CardScripts.Editor
         private const string MagePrefabPath = "Assets/AIModels/MageEntity.prefab";
         private const string KingPrefabPath = "Assets/AIModels/KingEntity.prefab";
         private const string MirrorPrefabPath = "Assets/Entity/Mirror.prefab";
-
-        static CardSceneBuilder()
-        {
-            EditorApplication.delayCall += () =>
-            {
-                // Tự động kiểm tra và cập nhật Scene nếu cần
-                BuildScene();
-            };
-        }
 
         public static void BuildScene()
         {

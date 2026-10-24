@@ -1,0 +1,246 @@
+using System;
+using DG.Tweening;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+namespace GridBattle
+{
+    /// <summary>
+    /// Dựng uGUI bằng code với 1 phong cách chung (HUD, pause, main menu, settings),
+    /// để không phải sửa tay từng scene. Font: LegacyRuntime (dynamic, có fallback font hệ thống -> hiển thị được tiếng Việt).
+    /// </summary>
+    public static class UiFactory
+    {
+        public static readonly Color PanelColor = new(0.07f, 0.08f, 0.12f, 0.92f);
+        public static readonly Color ButtonColor = new(0.16f, 0.18f, 0.26f, 1f);
+        public static readonly Color ButtonHover = new(0.26f, 0.3f, 0.42f, 1f);
+        public static readonly Color Accent = new(0.95f, 0.8f, 0.35f, 1f);
+        public static readonly Color TextColor = new(0.94f, 0.94f, 0.97f, 1f);
+
+        private static Font _font;
+        public static Font Font => _font != null ? _font : _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+        public static void EnsureEventSystem()
+        {
+            if (EventSystem.current != null || UnityEngine.Object.FindAnyObjectByType<EventSystem>() != null) return;
+            var go = new GameObject("EventSystem", typeof(EventSystem));
+            Type module = Type.GetType("UnityEngine.InputSystem.UI.InputSystemUIInputModule, Unity.InputSystem");
+            if (module != null) go.AddComponent(module);
+            else go.AddComponent<StandaloneInputModule>();
+        }
+
+        public static Canvas CreateCanvas(string name, int sortingOrder)
+        {
+            EnsureEventSystem();
+            var go = new GameObject(name, typeof(RectTransform));
+            var canvas = go.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = sortingOrder;
+            var scaler = go.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            scaler.matchWidthOrHeight = 0.5f;
+            go.AddComponent<GraphicRaycaster>();
+            return canvas;
+        }
+
+        public static RectTransform Rect(string name, Transform parent)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            return (RectTransform)go.transform;
+        }
+
+        public static RectTransform Stretch(this RectTransform rt, float inset = 0f)
+        {
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = new Vector2(inset, inset);
+            rt.offsetMax = new Vector2(-inset, -inset);
+            return rt;
+        }
+
+        /// <summary>Đặt anchor + pivot cùng 1 điểm (0..1), vị trí và kích thước tính bằng pixel tham chiếu 1920x1080.</summary>
+        public static RectTransform Place(this RectTransform rt, Vector2 anchor, Vector2 pos, Vector2 size)
+        {
+            rt.anchorMin = rt.anchorMax = rt.pivot = anchor;
+            rt.anchoredPosition = pos;
+            rt.sizeDelta = size;
+            return rt;
+        }
+
+        public static Image Panel(string name, Transform parent, Color color, bool blockRaycasts = true)
+        {
+            RectTransform rt = Rect(name, parent);
+            var img = rt.gameObject.AddComponent<Image>();
+            img.color = color;
+            img.raycastTarget = blockRaycasts;
+            return img;
+        }
+
+        /// <summary>Panel có viền sáng (Outline) dùng cho hộp thoại.</summary>
+        public static Image Window(string name, Transform parent, Vector2 size)
+        {
+            // Nền đặc: Outline vẽ thêm các bản sao màu viền phía sau, nền trong suốt sẽ bị ám màu viền.
+            Image img = Panel(name, parent, new Color(PanelColor.r, PanelColor.g, PanelColor.b, 1f));
+            img.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, size);
+            var outline = img.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(Accent.r, Accent.g, Accent.b, 0.6f);
+            outline.effectDistance = new Vector2(2f, -2f);
+            return img;
+        }
+
+        public static Text Label(string name, Transform parent, string text, int size,
+            TextAnchor align = TextAnchor.MiddleCenter, Color? color = null, FontStyle style = FontStyle.Normal)
+        {
+            RectTransform rt = Rect(name, parent);
+            var t = rt.gameObject.AddComponent<Text>();
+            t.font = Font;
+            t.text = text;
+            t.fontSize = size;
+            t.fontStyle = style;
+            t.alignment = align;
+            t.color = color ?? TextColor;
+            t.raycastTarget = false;
+            t.horizontalOverflow = HorizontalWrapMode.Wrap;
+            t.verticalOverflow = VerticalWrapMode.Overflow;
+            var shadow = rt.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.6f);
+            shadow.effectDistance = new Vector2(2f, -2f);
+            return t;
+        }
+
+        public static Button Button(string name, Transform parent, string text, Action onClick, int fontSize = 32)
+        {
+            Image bg = Panel(name, parent, ButtonHover);
+            var outline = bg.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(Accent.r, Accent.g, Accent.b, 0.35f);
+            outline.effectDistance = new Vector2(2f, -2f);
+
+            var btn = bg.gameObject.AddComponent<Button>();
+            btn.targetGraphic = bg;
+            ColorBlock colors = btn.colors;
+            // Ảnh nền mang màu hover; trạng thái thường tối hơn, disabled tối + mờ hẳn.
+            colors.normalColor = new Color(ButtonColor.r / ButtonHover.r, ButtonColor.g / ButtonHover.g, ButtonColor.b / ButtonHover.b);
+            colors.highlightedColor = Color.white;
+            colors.selectedColor = colors.normalColor;
+            colors.pressedColor = new Color(0.75f, 0.75f, 0.75f);
+            colors.disabledColor = new Color(0.45f, 0.45f, 0.45f, 0.45f);
+            colors.colorMultiplier = 1f;
+            btn.colors = colors;
+            btn.onClick.AddListener(() => Sfx.Play(SfxId.UiClick));
+            if (onClick != null) btn.onClick.AddListener(() => onClick());
+
+            Label("Text", bg.transform, text, fontSize, TextAnchor.MiddleCenter, null, FontStyle.Bold).rectTransform.Stretch();
+            bg.gameObject.AddComponent<ButtonPop>();
+            return btn;
+        }
+
+        public static void SetText(this Button b, string text) => b.GetComponentInChildren<Text>().text = text;
+
+        public static Slider Slider(string name, Transform parent, float min, float max, float value, Action<float> onChange)
+        {
+            RectTransform root = Rect(name, parent);
+            var slider = root.gameObject.AddComponent<Slider>();
+
+            Image bg = Panel("Background", root, new Color(0.2f, 0.22f, 0.3f, 1f));
+            bg.rectTransform.anchorMin = new Vector2(0f, 0.35f);
+            bg.rectTransform.anchorMax = new Vector2(1f, 0.65f);
+            bg.rectTransform.offsetMin = bg.rectTransform.offsetMax = Vector2.zero;
+
+            RectTransform fillArea = Rect("Fill Area", root);
+            fillArea.anchorMin = new Vector2(0f, 0.35f);
+            fillArea.anchorMax = new Vector2(1f, 0.65f);
+            fillArea.offsetMin = new Vector2(5f, 0f);
+            fillArea.offsetMax = new Vector2(-15f, 0f);
+            Image fill = Panel("Fill", fillArea, Accent, false);
+            fill.rectTransform.sizeDelta = new Vector2(10f, 0f);
+
+            RectTransform handleArea = Rect("Handle Area", root).Stretch();
+            handleArea.offsetMin = new Vector2(10f, 0f);
+            handleArea.offsetMax = new Vector2(-10f, 0f);
+            Image handle = Panel("Handle", handleArea, Color.white);
+            handle.rectTransform.sizeDelta = new Vector2(24f, 0f);
+
+            slider.fillRect = fill.rectTransform;
+            slider.handleRect = handle.rectTransform;
+            slider.targetGraphic = handle;
+            slider.minValue = min;
+            slider.maxValue = max;
+            slider.value = value;
+            if (onChange != null) slider.onValueChanged.AddListener(v => onChange(v));
+            return slider;
+        }
+
+        /// <summary>Xếp con theo chiều dọc.</summary>
+        public static VerticalLayoutGroup Vertical(RectTransform rt, float spacing, int padding = 0)
+        {
+            var v = rt.gameObject.AddComponent<VerticalLayoutGroup>();
+            v.spacing = spacing;
+            v.padding = new RectOffset(padding, padding, padding, padding);
+            v.childAlignment = TextAnchor.MiddleCenter;
+            v.childControlWidth = true;
+            v.childControlHeight = true;
+            v.childForceExpandWidth = true;
+            v.childForceExpandHeight = false;
+            return v;
+        }
+
+        public static T Height<T>(this T c, float h) where T : Component
+        {
+            if (!c.TryGetComponent(out LayoutElement le)) le = c.gameObject.AddComponent<LayoutElement>();
+            le.preferredHeight = h;
+            le.minHeight = h;
+            return c;
+        }
+
+        /// <summary>Hiện/ẩn 1 nhóm UI có fade + phóng nhẹ. Chạy cả khi Time.timeScale = 0 (pause).</summary>
+        public static void Show(CanvasGroup g, bool show, float duration = 0.2f)
+        {
+            g.DOKill();
+            g.transform.DOKill();
+            g.interactable = show;
+            g.blocksRaycasts = show;
+            if (show)
+            {
+                g.gameObject.SetActive(true);
+                g.transform.localScale = Vector3.one * 0.96f;
+                g.transform.DOScale(1f, duration).SetEase(Ease.OutBack).SetUpdate(true);
+                g.DOFade(1f, duration).SetUpdate(true);
+            }
+            else
+            {
+                g.DOFade(0f, duration).SetUpdate(true).OnComplete(() => g.gameObject.SetActive(false));
+            }
+        }
+
+        public static CanvasGroup Group(GameObject go, bool visible)
+        {
+            if (!go.TryGetComponent(out CanvasGroup g)) g = go.AddComponent<CanvasGroup>();
+            g.alpha = visible ? 1f : 0f;
+            g.interactable = g.blocksRaycasts = visible;
+            go.SetActive(visible);
+            return g;
+        }
+    }
+
+    /// <summary>Nút nảy nhẹ khi rê chuột (unscaled time để vẫn chạy trong pause menu).</summary>
+    public class ButtonPop : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    {
+        public void OnPointerEnter(PointerEventData e)
+        {
+            if (TryGetComponent(out Selectable s) && s.interactable) Sfx.Play(SfxId.UiHover);
+            transform.DOKill();
+            transform.DOScale(1.06f, 0.12f).SetEase(Ease.OutBack).SetUpdate(true);
+        }
+
+        public void OnPointerExit(PointerEventData e)
+        {
+            transform.DOKill();
+            transform.DOScale(1f, 0.12f).SetUpdate(true);
+        }
+
+        private void OnDisable() => transform.localScale = Vector3.one;
+    }
+}

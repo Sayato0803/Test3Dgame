@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -86,10 +87,71 @@ namespace CardScripts
 
         public GameObject SpawnPrefab => spawnPrefab;
 
+        /// <summary>
+        /// Có handler thì lá bài gọi handler thay vì CardManager (dùng trong trận đấu).
+        /// Handler trả false = không được dùng lá này lúc này -> lá rung lắc, không bị tiêu hao.
+        /// </summary>
+        public Func<CardView, bool> ClickHandler { get; set; }
+
+        /// <summary>Dữ liệu tuỳ ý của người tạo lá bài (vd loại quân).</summary>
+        public object Tag { get; set; }
+
+        public bool IsConsumed => isConsumed;
+
+        /// <summary>Gán tham chiếu hiển thị khi tạo lá bài bằng code lúc chạy.</summary>
+        public void Configure(Image art, Image shine, ParticleSystem sparkle)
+        {
+            cardArtImage = art;
+            shineImage = shine;
+            sparkleParticle = sparkle;
+            if (shineImage != null) shineImage.gameObject.SetActive(false);
+            if (sparkleParticle != null) sparkleParticle.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+
+        /// <summary>Chia bài: lá bay từ dưới đáy màn hình lên vị trí nghỉ.</summary>
+        public void DealIn(float delay)
+        {
+            rectTransform.DOKill();
+            canvasGroup.alpha = 0f;
+            rectTransform.anchoredPosition = restAnchoredPosition + new Vector2(0f, -320f);
+            rectTransform.localRotation = Quaternion.Euler(0f, 0f, UnityEngine.Random.Range(-20f, 20f));
+            rectTransform.DOAnchorPos(restAnchoredPosition, 0.45f).SetDelay(delay).SetEase(Ease.OutBack);
+            rectTransform.DOLocalRotate(restRotation.eulerAngles, 0.45f).SetDelay(delay).SetEase(Ease.OutQuad);
+            canvasGroup.DOFade(1f, 0.25f).SetDelay(delay);
+            GridBattle.Sfx.Play(GridBattle.SfxId.CardDeal, 0.8f, 0.1f, delay);
+        }
+
+        /// <summary>Dời vị trí nghỉ mượt (khi số lá trên tay thay đổi).</summary>
+        public void MoveRestPosition(Vector2 pos, float duration)
+        {
+            restAnchoredPosition = pos;
+            if (isConsumed) return;
+            rectTransform.DOAnchorPos(pos, duration).SetEase(Ease.OutQuad);
+        }
+
+        /// <summary>Thu lá bài về đáy màn hình rồi tự huỷ.</summary>
+        public void Discard()
+        {
+            isConsumed = true;
+            canvasGroup.blocksRaycasts = false;
+            rectTransform.DOKill();
+            canvasGroup.DOKill();
+            rectTransform.DOAnchorPosY(restAnchoredPosition.y - 320f, 0.3f).SetEase(Ease.InBack);
+            canvasGroup.DOFade(0f, 0.3f).OnComplete(() => Destroy(gameObject));
+        }
+
+        private void Deny()
+        {
+            GridBattle.Sfx.Play(GridBattle.SfxId.Deny);
+            rectTransform.DOKill(true);
+            rectTransform.DOShakeAnchorPos(0.3f, new Vector2(18f, 0f), 20, 0f);
+        }
+
         public void OnPointerEnter(PointerEventData eventData)
         {
             if (isConsumed) return;
 
+            GridBattle.Sfx.Play(GridBattle.SfxId.CardHover);
             rectTransform.DOKill();
 
             // 1. Nhấc lá bài lên cao và phóng to
@@ -139,7 +201,13 @@ namespace CardScripts
         public void OnPointerClick(PointerEventData eventData)
         {
             if (isConsumed) return;
+            if (ClickHandler != null && !ClickHandler(this))
+            {
+                Deny();
+                return;
+            }
             isConsumed = true;
+            GridBattle.Sfx.Play(GridBattle.SfxId.CardFlip);
 
             // Khóa tương tác
             if (canvasGroup != null) canvasGroup.blocksRaycasts = false;
@@ -148,9 +216,10 @@ namespace CardScripts
             if (sparkleParticle != null) sparkleParticle.Stop(true, ParticleSystemStopBehavior.StopEmitting);
 
             rectTransform.DOKill();
+            canvasGroup.DOKill();
 
             // Gửi tín hiệu tạo thực thể 3D tương ứng
-            if (CardManager.Instance != null)
+            if (ClickHandler == null && CardManager.Instance != null)
             {
                 CardManager.Instance.OnCardClicked(this, spawnPrefab);
             }
@@ -159,12 +228,22 @@ namespace CardScripts
             Sequence consumeSequence = DOTween.Sequence();
             consumeSequence.Append(rectTransform.DOPunchScale(Vector3.one * 0.15f, 0.12f, 12, 1));
             consumeSequence.Append(rectTransform.DOAnchorPosY(restAnchoredPosition.y - 280f, 0.38f).SetEase(Ease.InBack));
-            consumeSequence.Join(rectTransform.DOLocalRotate(new Vector3(0, 0, Random.Range(-15f, 15f)), 0.38f));
+            consumeSequence.Join(rectTransform.DOLocalRotate(new Vector3(0, 0, UnityEngine.Random.Range(-15f, 15f)), 0.38f));
             consumeSequence.Join(canvasGroup.DOFade(0f, 0.38f));
             consumeSequence.OnComplete(() =>
             {
-                gameObject.SetActive(false);
+                // Lá bài trong trận được tạo bằng code -> huỷ hẳn; lá trong CardScene giữ hành vi cũ.
+                if (ClickHandler != null) Destroy(gameObject);
+                else gameObject.SetActive(false);
             });
+        }
+
+        private void OnDestroy()
+        {
+            // Lá bị huỷ giữa chừng (vd đang chia bài): dừng mọi tween còn trỏ tới nó.
+            if (rectTransform != null) rectTransform.DOKill();
+            if (canvasGroup != null) canvasGroup.DOKill();
+            if (shineSequence != null) shineSequence.Kill();
         }
 
         private void TriggerShineEffect()

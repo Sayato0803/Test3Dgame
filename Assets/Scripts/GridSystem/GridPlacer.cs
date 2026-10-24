@@ -1,12 +1,16 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace GridBattle
 {
 
     public class GridPlacer : MonoBehaviour
     {
+        [Tooltip("Các góc camera (Cam1..Cam5). Có CameraRig thì đây chỉ là điểm neo cho camera chính bay tới.")]
         [SerializeField] private Camera[] _camera = new Camera[5];
+        [SerializeField] private CameraRig _rig;
         [SerializeField] private int _startCameraIndex;
         [Tooltip("Để trống = tự tìm mọi GridSystem trong scene.")]
         [SerializeField] private GridSystem[] _grids;
@@ -28,24 +32,34 @@ namespace GridBattle
         [SerializeField] private int _mageRange = 4;
         [SerializeField] private int _knightRange = 3;
         [SerializeField] private Color _previewAttackColor = new(0.55f, 0.8f, 1f, 0.4f);
-        
+
         private readonly int _overViewCam = 2;
         private int _cameraIndex;
-        private Camera ActiveCam => _camera[_cameraIndex];
+        public Camera ActiveCam => _rig != null ? _rig.Camera : _camera[_cameraIndex];
 
         private GridUnit _dragging;
         private bool _draggingNew;
+        private float _spawnTime;
         private GridSystem _hoverGrid;
         private readonly List<Vector2Int> _hoverCoords = new();
-        private readonly List<Rect> _uiRects = new();
 
         public bool IsDragging => _dragging != null;
+        /// <summary>Đang kéo 1 quân mới từ thẻ bài (chưa đặt) - CardHand dùng để không chia lại lá đó.</summary>
+        public UnitKind? DraggingNewKind => _dragging != null && _draggingNew ? _dragging.Kind : null;
+        /// <summary>Camera đang bay: tạm khoá thao tác.</summary>
+        public bool IsCameraMoving => _rig != null && _rig.IsMoving;
+
+        /// <summary>Bắt đầu cầm 1 quân (quân mới từ thẻ hoặc quân đã đặt).</summary>
+        public event Action<GridUnit> OnDragStarted;
+        /// <summary>Kết thúc cầm: true = đã đặt xuống ô, false = huỷ.</summary>
+        public event Action<GridUnit, bool> OnDragEnded;
 
         // Không có Phases thì nhấc được mọi quân (test tự do).
         private bool CanPickUp(GridUnit unit) => _phases == null || _phases.CanPickUp(unit);
 
         private void Awake()
         {
+            if (_rig != null) _rig.SnapTo(_startCameraIndex);
             SwitchCamera(_startCameraIndex);
             if (_grids == null || _grids.Length == 0)
                 _grids = FindObjectsByType<GridSystem>(FindObjectsSortMode.None);
@@ -75,13 +89,15 @@ namespace GridBattle
         {
             if (index < 0 || index >= _camera.Length || _camera[index] == null) return;
 
-            for (int i = 0; i < _camera.Length; i++)
-                if (_camera[i] != null)
-                    _camera[i].gameObject.SetActive(i == index);
+            if (_rig != null) _rig.MoveTo(index);
+            else
+                for (int i = 0; i < _camera.Length; i++)
+                    if (_camera[i] != null)
+                        _camera[i].gameObject.SetActive(i == index);
 
             _cameraIndex = index;
             if (index == _overViewCam && _dragging != null){
-                CancelDrag(); 
+                CancelDrag();
                 ClearHover();
             }
         }
@@ -91,21 +107,23 @@ namespace GridBattle
 
         private void Update()
         {
+            if (Time.timeScale == 0f) return; // pause menu
+
             if (Input.GetKeyDown(KeyCode.Alpha1)) SwitchCamera(0);
             if (Input.GetKeyDown(KeyCode.Alpha2)) SwitchCamera(1);
             if (Input.GetKeyDown(KeyCode.Alpha3)) SwitchCamera(2);
             if (Input.GetKeyDown(KeyCode.Alpha4)) SwitchCamera(3);
             if (Input.GetKeyDown(KeyCode.Alpha5)) SwitchCamera(4);
 
-            // Đang che màn hình đổi người: không cho thao tác gì.
-            if (_phases != null && _phases.IsHandingOver)
+            // Đang che màn hình đổi người hoặc camera đang bay: không cho thao tác gì.
+            if ((_phases != null && (_phases.IsHandingOver || _phases.IsAnimating)) || IsCameraMoving)
             {
                 ClearHover();
                 return;
             }
 
             float scroll = Input.mouseScrollDelta.y;
-            if (scroll != 0)
+            if (scroll != 0 && !MouseOverUi())
             {
                 if(_dragging == null)
                 {
@@ -115,8 +133,9 @@ namespace GridBattle
                 else
                 {
                     _dragging.transform.Rotate(0,Mathf.Sign(scroll)*90f,0,Space.World);
+                    Reactions(_dragging)?.PlayTurn();
                 }
-                
+
             }
 
             ClearHover();
@@ -131,11 +150,7 @@ namespace GridBattle
                     GridUnit picked = null;
                     if (cell.Attacker != null && CanPickUp(cell.Attacker)) picked = cell.Attacker;
                     else if (cell.King != null && CanPickUp(cell.King)) picked = cell.King;
-                    if (picked != null)
-                    {
-                        _dragging = picked;
-                        _draggingNew = false;
-                    }
+                    if (picked != null) BeginDrag(picked, false);
                 }
                 return;
             }
@@ -147,11 +162,13 @@ namespace GridBattle
                 return;
             }
 
+            // Quân mới từ thẻ bay chậm hơn lúc đầu (vệt bay từ lá bài ra), sau đó bám chuột sát.
+            float follow = _draggingNew ? Mathf.Lerp(5f, 20f, (Time.time - _spawnTime) / 0.5f) : 20f;
             Vector3 target = overCell ? grid.CellToWorld(coord) : MouseOnGround();
             _dragging.transform.position = Vector3.Lerp(
                 _dragging.transform.position,
                 target + Vector3.up * _dragHeight,
-                1f - Mathf.Exp(-20f * Time.deltaTime));
+                1f - Mathf.Exp(-follow * Time.deltaTime));
 
             bool valid = overCell && grid.CanPlace(_dragging, coord)
                          && (_phases == null || _phases.CanDropOn(grid));
@@ -161,27 +178,79 @@ namespace GridBattle
                 else SetHover(grid, coord, valid ? _validColor : _invalidColor);
             }
 
-            // Quân mới: click để thả (lần nhả chuột đầu tiên là cú bấm nút). Quân cũ: nhả chuột để thả.
+            // Quân mới: click để thả (cú click lá bài đã nhả chuột). Quân cũ: nhả chuột để thả.
             bool drop = _draggingNew ? Input.GetMouseButtonDown(0) : Input.GetMouseButtonUp(0);
             if (!drop) return;
 
-            if (valid && _cameraIndex != _overViewCam) grid.Place(_dragging, coord);
-            else
+            if (valid && _cameraIndex != _overViewCam)
             {
-                CancelDrag();
-                return;
+                GridUnit unit = _dragging;
+                float before = unit.transform.position.y;
+                _dragging = null; // trước Place: listener của OnUnitPlaced thấy IsDragging = false
+                grid.Place(unit, coord);
+                Reactions(unit)?.Land(before - unit.transform.position.y);
+                OnDragEnded?.Invoke(unit, true);
             }
-            _dragging = null;
+            else CancelDrag();
+        }
 
+        private void BeginDrag(GridUnit unit, bool isNew)
+        {
+            _dragging = unit;
+            _draggingNew = isNew;
+            _spawnTime = Time.time;
+            Reactions(unit)?.BeginHeld();
+            OnDragStarted?.Invoke(unit);
         }
 
         private void CancelDrag()
         {
-            if (_draggingNew) Destroy(_dragging.gameObject);
-            else _dragging.transform.position = _dragging.Grid.CellToWorld(_dragging.Coord); // về chỗ cũ
+            GridUnit unit = _dragging;
+            if (unit == null) return;
             _dragging = null;
-            
+
+            UnitReactions r = Reactions(unit);
+            if (_draggingNew)
+            {
+                if (r != null) r.Vanish();
+                else Destroy(unit.gameObject);
+            }
+            else
+            {
+                float before = unit.transform.position.y;
+                unit.transform.position = unit.Grid.CellToWorld(unit.Coord); // về chỗ cũ
+                r?.Land(before - unit.transform.position.y);
+            }
+            OnDragEnded?.Invoke(unit, false);
         }
+
+        private static UnitReactions Reactions(GridUnit u) => u != null && u.TryGetComponent(out UnitReactions r) ? r : null;
+
+        // ---------------- Thẻ bài ----------------
+
+        /// <summary>
+        /// Lá bài được bấm: tạo quân ngay trước camera tại vị trí lá bài, quân bay ra và bám theo chuột.
+        /// Trả false nếu lúc này không được tạo loại quân đó (lá bài sẽ rung từ chối).
+        /// </summary>
+        public bool TrySpawnFromCard(UnitKind kind, Vector2 screenPos)
+        {
+            if (_dragging != null || IsCameraMoving || Time.timeScale == 0f) return false;
+            if (_phases != null && !_phases.CanSpawn(kind)) return false;
+            if (_cameraIndex == _overViewCam) return false;
+
+            Vector3 start = ActiveCam.ScreenToWorldPoint(new Vector3(screenPos.x, screenPos.y, 4f));
+            GridUnit unit = SpawnUnit(kind, ModelOf(kind), start);
+            Reactions(unit)?.PlaySpawn();
+            BeginDrag(unit, true);
+            return true;
+        }
+
+        private GameObject ModelOf(UnitKind kind) => kind switch
+        {
+            UnitKind.King => _kingModel,
+            UnitKind.Knight => _knightModel,
+            _ => _mageModel
+        };
 
         // ---------------- Raycast ----------------
 
@@ -221,7 +290,7 @@ namespace GridBattle
             _hoverCoords.Clear();
             _hoverGrid = null;
         }
-        
+
         //Preview attack range
 
         private int RangeOf(UnitKind kind) => kind switch
@@ -238,40 +307,18 @@ namespace GridBattle
                 SetHover(grid, c, _previewAttackColor);
         }
 
-        // ---------------- Nút tạm (OnGUI) ----------------
+        // ---------------- UI ----------------
 
-        private void OnGUI()
-        {
-            _uiRects.Clear();
-            DrawSpawnButton(0, "King", UnitKind.King, _kingModel);
-            DrawSpawnButton(1, "Knight", UnitKind.Knight, _knightModel);
-            DrawSpawnButton(2, "Mage", UnitKind.Mage, _mageModel);
-        }
-
-        private void DrawSpawnButton(int index, string label, UnitKind kind, GameObject model)
-        {
-            if (_phases != null && !_phases.CanSpawn(kind)) return; // phase này không được đặt loại quân này
-
-            var rect = new Rect(16 + index * 110, Screen.height - 56, 100, 40);
-            _uiRects.Add(rect);
-            if (GUI.Button(rect, label) && _dragging == null)
-            {
-                _dragging = SpawnUnit(kind, model);
-                _draggingNew = true;
-            }
-        }
-
+        /// <summary>Chuột đang trên UI (thẻ bài, HUD) thì không raycast xuống bàn.</summary>
         private bool MouseOverUi()
         {
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return true;
             Vector2 m = Input.mousePosition;
-            m.y = Screen.height - m.y; 
-            if (_phases != null && _phases.IsOverUi(m)) return true;
-            foreach (Rect r in _uiRects)
-                if (r.Contains(m)) return true;
-            return false;
+            m.y = Screen.height - m.y;
+            return _phases != null && _phases.IsOverUi(m);
         }
 
-        private GridUnit SpawnUnit(UnitKind kind, GameObject model)
+        private GridUnit SpawnUnit(UnitKind kind, GameObject model, Vector3 position)
         {
             GameObject go;
             if (model != null)
@@ -284,26 +331,25 @@ namespace GridBattle
             }
             else
             {
-                go = GameObject.CreatePrimitive(kind == UnitKind.King ? PrimitiveType.Cylinder
+                // Primitive làm con của 1 gốc rỗng để UnitReactions có thể bọc phần hiển thị.
+                go = new GameObject();
+                GameObject shape = GameObject.CreatePrimitive(kind == UnitKind.King ? PrimitiveType.Cylinder
                     : kind == UnitKind.Knight ? PrimitiveType.Cube : PrimitiveType.Capsule);
-                Destroy(go.GetComponent<Collider>());
+                Destroy(shape.GetComponent<Collider>());
+                shape.transform.SetParent(go.transform, false);
+                shape.transform.localPosition = Vector3.up * 0.5f;
             }
 
             go.name = kind.ToString();
             go.transform.localScale *= _unitScale;
-            go.transform.position = MouseOnGroundOrOrigin();
+            go.transform.position = position;
 
             var unit = go.AddComponent<GridUnit>();
             unit.Kind = kind;
             unit.Range = RangeOf(kind);
+            ToonStyle.Apply(go);
+            go.AddComponent<UnitReactions>();
             return unit;
-        }
-
-        private Vector3 MouseOnGroundOrOrigin()
-        {
-            Ray ray = ActiveCam.ScreenPointToRay(Input.mousePosition);
-            var ground = new Plane(Vector3.up, Vector3.zero);
-            return ground.Raycast(ray, out float d) ? ray.GetPoint(d) : Vector3.zero;
         }
     }
 }

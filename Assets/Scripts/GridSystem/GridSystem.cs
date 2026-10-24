@@ -10,6 +10,8 @@ namespace GridBattle
         [SerializeField] private float _cellSize = 1f;
         [Tooltip("Layer của collider bàn. Tạo layer này trong Tags & Layers; không có thì dùng Default.")]
         [SerializeField] private string _gridLayerName = "Grid";
+        [Tooltip("2 màu ô xen kẽ kiểu bàn cờ.")]
+        [SerializeField] private Color _colorA = Color.white;
         [SerializeField] private Color _colorB = Color.white;
 
         private Cell[,] _cells;
@@ -114,7 +116,7 @@ namespace GridBattle
             if (InBounds(c)) ApplyColor(_tiles[c.x, c.y], BaseColor(c));
         }
 
-        private Color BaseColor(Vector2Int c) => _colorB;
+        private Color BaseColor(Vector2Int c) => (c.x + c.y) % 2 == 0 ? _colorA : _colorB;
         private void CreateCollider()
         {
             var go = new GameObject("GridCollider");

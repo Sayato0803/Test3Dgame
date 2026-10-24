@@ -1,6 +1,6 @@
 # Learner Profile
 
-Learning mode: active
+Learning mode: paused (learner yêu cầu sửa trực tiếp 2026-10-23)
 Onboarding: complete
 
 ## Project

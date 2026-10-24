@@ -11,8 +11,17 @@ namespace GridBattle
         public int MaxHealth = 10;
         public int Health = 10;
 
-        /// <summary>Bị đánh trúng -> bên tấn công thấy. Chủ quân đổi chỗ -> ẩn lại.</summary>
+        /// <summary>Bị đánh trúng -> lộ trong lượt đó. Hết lượt (hoặc chủ quân nhấc King lên) -> ẩn lại, dù King đứng yên.</summary>
         public bool IsRevealed;
+
+        /// <summary>Ô King đứng lúc bị lộ.</summary>
+        public Vector2Int RevealedAt;
+
+        public void Reveal(Vector2Int at)
+        {
+            IsRevealed = true;
+            RevealedAt = at;
+        }
 
         public bool IsDead => Health <= 0;
 

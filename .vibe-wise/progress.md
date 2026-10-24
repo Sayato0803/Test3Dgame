@@ -48,3 +48,19 @@ Needs reinforcement: lý do chọn A1/B1/C1 chưa được learner diễn đạt
 - (2026-10-21) Bước 2: learner yêu cầu sửa thẳng (bỏ qua checkpoint). AI tự chọn và ghi vào Board-copy (chưa commit, type-check pass): KingStats component (Health public 10, IsRevealed, SetVisible tắt Renderer con) do Phases AddComponent; AttackRange static (hướng c) dùng chung preview + battle; GridUnit.Range gán lúc spawn; ResolveBattle tính damage + lộ + GameOver; King chết nằm lại, hiện, không nhận thêm damage; RefreshKingVisibility (chủ quân / đã lộ / đã chết / GameOver). Các lựa chọn này là của AI, learner chưa diễn đạt lý do.
 
 Offered trước đó (chưa duyệt): nâng primitive lên nửa chiều cao; GridPlacer bỏ qua phần tử null trong _grids.
+
+## Merge Card + Game, menu, camera, phản ứng quân (2026-10-23)
+Learning mode paused: learner yêu cầu AI sửa trực tiếp, bỏ qua checkpoint. Learner duyệt qua câu hỏi: click thẻ -> quân bay theo chuột; 1 camera bay giữa 5 góc; tắt auto-run CardSceneBuilder; uGUI HUD, hiệu ứng trúng đòn, pause menu, bỏ thẻ Mirror/Treasure.
+AI implemented (đã chạy thử trong Unity qua MCP, flow Deploy->Attack->End->GameOver không lỗi): CardHand, CameraRig, UnitReactions, GameHud, MainMenu, SettingsPanel, GameSettings, SceneFader, UiFactory; sửa GridPlacer/Phases/CardView/CardSceneBuilder; scene MainMenu mới; GridTest thêm Main Camera + GameUI. Learner chưa giải thích lại các phần này.
+
+## Đè bẹp / văng King / cartoon / âm thanh (2026-10-23)
+Learning mode vẫn paused (sửa trực tiếp). Learner chốt luật: attacker thả trúng King ẩn -> King -1 máu + lộ; attacker nảy sang ô ngẫu nhiên trong 3x3 (AI thêm: bỏ ô có attacker/King ẩn khác; chỉ King ẩn mới bị đè). King chết bị đánh văng khỏi bàn. Chọn: toon shader + viền, môi trường dựng trong Unity, hạt cartoon, âm thanh tổng hợp bằng code; asset CC0 qua Blender chưa làm (Blender chưa chạy).
+AI implemented + chạy thử trong Unity (đè bẹp, nảy, văng, GameOver): Sfx, Toon/SkyGradient shader, ToonStyle, CartoonAssets, CartoonFx, EnvironmentMotion, CartoonEnvironmentBuilder; Phases.TrySquash.
+
+## Outline, thẻ mới, bàn xám, văng ngang, đè ở battle (2026-10-23)
+Learning mode paused. Learner chốt: model mới = Blender nâng cấp model hiện có (chưa làm: Blender chưa kết nối MCP); thẻ = cắt 3 thẻ từ newModel.jpg; đè bẹp chỉ trong battle, đè mọi King còn sống dưới chân (thay bonus +1), nảy 3x3.
+AI implemented + test trong Unity: OutlineNormals (pháp tuyến mượt trong tangent), CardArt_*.png + import không nén/mipmap, mô tả trên thẻ, bàn xám, KnockOut văng ngang -> rơi xuống biển (Splash), ResolveBattle tính damage trước rồi mới animate/dời quân.
+- (2026-10-23) Model mới qua Blender 5.1 (MCP): King + quyền trượng, râu mượt; Knight + mũ tròn, tấm che khe, chùm lông, khiên gỗ, kiếm màu phẳng; Mage + râu dài, ria, lông mày, mũ sao + chóp cong, gậy màu phẳng (ngọc xanh ngọc). Bản gốc ở ModelBackup/*.original.fbx, file .blend v2 ở ModelBackup/.
+- (2026-10-23) Learner chốt: King/Mage nâng cấp sâu như Knight; luật lộ: lộ tới khi chủ quân dời sang ô KHÁC (đặt lại ô cũ vẫn lộ); hiệu ứng ẩn: bụp khói + chui xuống. AI làm + test: vương miện răng cưa mới, khuy tròn, râu King; gậy gỗ cong ôm ngọc, râu 3 lọn cho Mage; KingStats.Reveal/RevealedAt; UnitReactions.SetBurrowed (PlayBurrow/PlayEmerge, chỉ FX khi người xem thấy); Sfx.Poof; CartoonFx.SmokePoof.
+- (2026-10-23) Learner chốt: ẩn King = xoay 1 vòng rồi biến mất để lại vệt khói (thay chui xuống); chết: đè bẹp -> bắn lên trời, Mage -> tan rã phép, Knight -> kiếm chém văng ngang; ưu tiên Đè > Mage > Knight. AI làm + test: DeathKind, LaunchToSky, Disintegrate, SmokeTrail, làn khói ẩn (chỉ chủ quân thấy), MagicBolt (Mage bắn tia), Slash (Knight), Sfx Magic/Slash/Zap.
+- (2026-10-23) Learner báo lỗi "vua vẫn hiện dù không di chuyển". Sửa luật: King chỉ lộ trong lượt bị đánh; hết lượt (End -> Setup) mọi King còn sống ẩn lại dù đứng yên (HideAllKings); nhấc King lên cũng ẩn. Test qua 2 lượt: OK.
