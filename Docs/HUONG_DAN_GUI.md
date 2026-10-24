@@ -15,6 +15,10 @@ GUI nằm sẵn trong scene và prefab: **chỉnh trực tiếp trong Unity Edit
 | `Assets/Prefab/UI/DamageText.prefab` | Số damage bay lên (cỡ chữ, màu, viền) |
 | `Assets/Resources/UI/SceneFader.prefab` | Màn đen khi chuyển scene |
 
+Khung kiểu gỗ & giấy da: `Image` của panel là **viền gỗ**, object con `Paper` (con đầu tiên) là **mặt giấy**. Đổi màu gỗ / giấy ở 2 Image này; chữ trên giấy màu mực nâu, tiêu đề đỏ son.
+
+**F1** trong trận ẩn / hiện toàn bộ HUD + tay bài (danh sách canvas ở ô `Hide On F1` của `GameHud`).
+
 Các panel ẩn sẵn (pause, settings, màn thắng…) bị tắt trong Hierarchy. Bật tạm để xem, **nhớ tắt lại** trước khi lưu scene.
 
 ## 2. Đổi ảnh (dễ nhất)
