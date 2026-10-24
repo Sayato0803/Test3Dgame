@@ -266,7 +266,8 @@ namespace GridBattle
             _held = false;
             _scripted = true;
             SetWisp(false);
-            if (dir != Vector3.zero) transform.rotation = Quaternion.LookRotation(dir); // clip bay theo +Z local
+            // shortcut: clip bay cố định ~33.4m theo +Z local (đủ ra biển từ mọi ô của đảo hiện tại), đổi cỡ đảo thì sửa clip + FinisherTests.
+            if (dir != Vector3.zero) transform.rotation = Quaternion.LookRotation(dir);
             Sfx.Play(SfxId.Punch, 1f, 0f);
             Sfx.Play(SfxId.SlideWhistle, 0.7f, 0.05f, 0.05f);
             if (CameraRig.Instance != null) CameraRig.Instance.Shake(0.3f, 0.3f);

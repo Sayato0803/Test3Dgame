@@ -32,6 +32,10 @@ namespace CardScripts
         [SerializeField] private Image shineImage;
         [SerializeField] private ParticleSystem sparkleParticle;
 
+        [Header("Bốc bài (Animator)")]
+        [Tooltip("Trigger Draw chạy clip bốc bài; clip gọi DrawFx(\"flip\"/\"shine\"/\"end\") qua Animation Event. Trống = hiện thẳng ở tay.")]
+        [SerializeField] private Animator drawAnimator;
+
         [Header("Spawn Entity Reference")]
         [Tooltip("Prefab của nhân vật/vật thể tương ứng sẽ được sinh ra khi bấm vào lá bài này")]
         [SerializeField] private GameObject spawnPrefab;
@@ -101,17 +105,37 @@ namespace CardScripts
 
         public bool IsConsumed => isConsumed;
 
-        /// <summary>Chia bài: lá bay từ dưới đáy màn hình lên vị trí nghỉ.</summary>
+        /// <summary>
+        /// Bốc bài kiểu Master Duel (clip Draw trên con "Body"): lá úp bay từ chồng bài góc dưới phải lên,
+        /// phóng to, lật mặt loé sáng rồi thu về chỗ trên tay. Đường bay / thời lượng / easing nằm trong clip.
+        /// </summary>
         public void DealIn(float delay)
         {
             rectTransform.DOKill();
+            rectTransform.anchoredPosition = restAnchoredPosition;
+            rectTransform.localRotation = restRotation;
+            if (drawAnimator == null) return;
             canvasGroup.alpha = 0f;
-            rectTransform.anchoredPosition = restAnchoredPosition + new Vector2(0f, -320f);
-            rectTransform.localRotation = Quaternion.Euler(0f, 0f, UnityEngine.Random.Range(-20f, 20f));
-            rectTransform.DOAnchorPos(restAnchoredPosition, 0.45f).SetDelay(delay).SetEase(Ease.OutBack);
-            rectTransform.DOLocalRotate(restRotation.eulerAngles, 0.45f).SetDelay(delay).SetEase(Ease.OutQuad);
-            canvasGroup.DOFade(1f, 0.25f).SetDelay(delay);
+            DOVirtual.DelayedCall(delay, () =>
+            {
+                if (this == null || isConsumed) return; // bị thu về / dùng trước khi kịp bốc
+                canvasGroup.alpha = 1f;
+                drawAnimator.enabled = true;
+                drawAnimator.SetTrigger("Draw");
+            });
             GridBattle.Sfx.Play(GridBattle.SfxId.CardDeal, 0.8f, 0.1f, delay);
+        }
+
+        /// <summary>Animation Event của clip Draw.</summary>
+        public void DrawFx(string id)
+        {
+            switch (id)
+            {
+                case "flip": GridBattle.Sfx.Play(GridBattle.SfxId.CardFlip, 0.9f); break;
+                case "shine": TriggerShineEffect(); break;
+                // Hết clip: tắt Animator để hover / vệt sáng (tween) không bị clip ghi đè.
+                case "end": drawAnimator.enabled = false; break;
+            }
         }
 
         /// <summary>Dời vị trí nghỉ mượt (khi số lá trên tay thay đổi).</summary>

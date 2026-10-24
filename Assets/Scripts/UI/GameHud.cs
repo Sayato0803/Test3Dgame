@@ -57,6 +57,12 @@ namespace GridBattle
         [SerializeField] private float _slowMoDuration = 1.4f;
         [SerializeField] private float _slowMoScale = 0.25f;
 
+        [Header("Thanh máu King")]
+        [Tooltip("Vệt vàng (con Area/Trail của prefab KingHpBar) đứng yên chừng này giây sau khi máu tụt rồi mới trượt theo.")]
+        [SerializeField] private float _hpTrailDelay = 0.45f;
+        [Tooltip("Tốc độ vệt vàng trượt về máu thật (tỉ lệ thanh / giây).")]
+        [SerializeField] private float _hpTrailSpeed = 0.5f;
+
         [Header("Màu / vị trí")]
         [SerializeField] private Color _hpLow = new(0.95f, 0.25f, 0.2f);
         [SerializeField] private Color _hpHigh = new(0.35f, 0.9f, 0.3f);
@@ -64,7 +70,19 @@ namespace GridBattle
         [Tooltip("Độ cao số damage so với chân King (world).")]
         [SerializeField] private float _damageHeight = 1.6f;
 
-        private readonly Dictionary<GridUnit, (Slider bar, Image fill, Text label)> _hpBars = new();
+        private class HpBar
+        {
+            public Slider Bar;
+            public Image Fill;
+            public Text Label;
+            public RectTransform Trail;
+            public float TrailValue = 1f;
+            public float TrailHoldUntil;
+        }
+
+        private readonly Dictionary<GridUnit, HpBar> _hpBars = new();
+        // Máu đã trừ ngay khi Confirm, nhưng thanh máu chỉ tụt khi đòn chạm King: (lúc chạm, damage).
+        private readonly Dictionary<GridUnit, (float at, int damage)> _pendingHits = new();
         private float _slowMoUntil;   // thời gian thật: đang slow-mo kết liễu (hitstop trả về _slowMoScale thay vì 1)
 
         private GamePhase _lastPhase = (GamePhase)(-1);
@@ -87,6 +105,7 @@ namespace GridBattle
             if (_phases == null) return;
             _phases.StateChanged += Refresh;
             _phases.KingHit += ShowDamage;
+            _phases.KingHit += HoldHpUntilHit;
             _phases.KingHit += Impact;
             _phases.KingHit += HideForFinisher;
             _phases.FinalBlow += FinalBlowFx;
@@ -97,6 +116,7 @@ namespace GridBattle
             if (_phases == null) return;
             _phases.StateChanged -= Refresh;
             _phases.KingHit -= ShowDamage;
+            _phases.KingHit -= HoldHpUntilHit;
             _phases.KingHit -= Impact;
             _phases.KingHit -= HideForFinisher;
             _phases.FinalBlow -= FinalBlowFx;
@@ -168,23 +188,35 @@ namespace GridBattle
                 {
                     if (k == null || !k.TryGetComponent(out KingStats s)) continue;
                     bool show = !_phases.IsHandingOver && !s.IsDead && (p == _phases.CurrentPlayer || s.IsRevealed);
-                    if (!_hpBars.TryGetValue(k, out var hb))
+                    int hp = s.Health;
+                    if (_pendingHits.TryGetValue(k, out var hit) && Time.time < hit.at) hp += hit.damage;
+                    float ratio = s.MaxHealth > 0 ? (float)hp / s.MaxHealth : 0f;
+                    if (!_hpBars.TryGetValue(k, out HpBar hb))
                     {
                         if (!show) continue;
                         Slider bar = Instantiate(_hpBarPrefab, _hpRoot);
-                        hb = (bar, bar.fillRect.GetComponent<Image>(), bar.GetComponentInChildren<Text>());
+                        hb = new HpBar
+                        {
+                            Bar = bar, Fill = bar.fillRect.GetComponent<Image>(), Label = bar.GetComponentInChildren<Text>(),
+                            Trail = (RectTransform)bar.transform.Find("Area/Trail"), TrailValue = ratio
+                        };
+                        bar.value = ratio;
                         _hpBars[k] = hb;
                     }
                     float height = k.TryGetComponent(out UnitReactions r) ? r.TopHeight + 0.35f : 1.6f;
                     Vector3 screen = cam.WorldToScreenPoint(k.transform.position + Vector3.up * height);
                     show &= screen.z > 0f;
-                    hb.bar.gameObject.SetActive(show);
+                    hb.Bar.gameObject.SetActive(show);
                     if (!show) continue;
-                    hb.bar.transform.position = screen;
-                    float ratio = s.MaxHealth > 0 ? (float)s.Health / s.MaxHealth : 0f;
-                    hb.bar.value = ratio;
-                    hb.fill.color = Color.Lerp(_hpLow, _hpHigh, ratio);
-                    hb.label.text = $"{s.Health}/{s.MaxHealth}";
+                    hb.Bar.transform.position = screen;
+                    if (ratio < hb.Bar.value) hb.TrailHoldUntil = Time.time + _hpTrailDelay; // vừa mất máu: vệt vàng chờ 1 nhịp
+                    hb.Bar.value = ratio;
+                    hb.Fill.color = Color.Lerp(_hpLow, _hpHigh, ratio);
+                    hb.Label.text = $"{hp}/{s.MaxHealth}";
+                    if (hb.Trail == null) continue;
+                    if (hb.TrailValue < ratio) hb.TrailValue = ratio;
+                    else if (Time.time >= hb.TrailHoldUntil) hb.TrailValue = Mathf.MoveTowards(hb.TrailValue, ratio, _hpTrailSpeed * Time.deltaTime);
+                    hb.Trail.anchorMax = new Vector2(hb.TrailValue, 1f);
                 }
             }
         }
@@ -250,6 +282,8 @@ namespace GridBattle
                 if (k != null && k.TryGetComponent(out KingStats s) && !s.IsDead) alive++;
             return $"{p.DisplayName}  KINGS {alive}/{_phases.KingsPerPlayer}";
         }
+
+        private void HoldHpUntilHit(GridUnit king, int damage, float delay) => _pendingHits[king] = (Time.time + delay, damage);
 
         /// <summary>Số damage bay lên từ đầu King, xuất hiện đúng lúc hiệu ứng trúng đòn.</summary>
         private void ShowDamage(GridUnit king, int damage, float delay)

@@ -181,13 +181,10 @@ namespace GridBattle
             // 2. Hoạt ảnh. King chết vì đòn từ xa: quân đánh trúng gần King nhất ra đòn kết liễu (clip PowerSlash / ZapCharge),
             // mỗi quân kết liễu tối đa 1 King. Các quân khác vẫn đánh nhưng không hiện chữ manga.
             // Attacker đè bẹp không lao lên đánh (nó rơi từ trên xuống); đè chết thì King bắn lên trời.
-            var finishers = new Dictionary<GridUnit, GridUnit>(); // King -> quân kết liễu
+            var killedFromRange = new List<(GridUnit king, List<GridUnit> hitters)>();
             foreach (var r in results)
-                if (r.stats.IsDead && r.squasher == null)
-                {
-                    GridUnit f = Nearest(r.king, r.rangeHitters, finishers.Values);
-                    if (f != null) finishers[r.king] = f;
-                }
+                if (r.stats.IsDead && r.squasher == null) killedFromRange.Add((r.king, r.rangeHitters));
+            Dictionary<GridUnit, GridUnit> finishers = PickFinishers(killedFromRange);
             var squashers = new HashSet<GridUnit>();
             foreach (var r in results) if (r.squasher != null) squashers.Add(r.squasher);
             int order = 0;
@@ -248,6 +245,21 @@ namespace GridBattle
             }
             RefreshKingVisibility();
             StateChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// King -> quân kết liễu: quân đánh trúng gần King nhất, mỗi quân kết liễu tối đa 1 King (xét King theo thứ tự).
+        /// King mà mọi quân trúng đã được dùng thì không có trong kết quả (văng không có đòn riêng).
+        /// </summary>
+        public static Dictionary<GridUnit, GridUnit> PickFinishers(List<(GridUnit king, List<GridUnit> hitters)> killed)
+        {
+            var finishers = new Dictionary<GridUnit, GridUnit>();
+            foreach (var (king, hitters) in killed)
+            {
+                GridUnit f = Nearest(king, hitters, finishers.Values);
+                if (f != null) finishers[king] = f;
+            }
+            return finishers;
         }
 
         /// <summary>Quân trong 'units' gần King nhất, bỏ qua các quân trong 'exclude'. Null nếu không còn quân nào.</summary>
