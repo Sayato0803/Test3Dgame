@@ -22,6 +22,7 @@ namespace GridBattle
         [SerializeField] private CanvasGroup _buttons;
         [SerializeField] private HoverRelay _quitHover;
         [SerializeField] private SettingsPanel _settings;
+        [SerializeField] private TutorialPanel _tutorial;
 
         [Header("Hiệu ứng xuất hiện")]
         [SerializeField] private float _titleDrop = 300f;
@@ -59,6 +60,7 @@ namespace GridBattle
             if (_camera == null) _camera = Camera.main;
             SpawnShowcase();
             _settings.Closed += () => UiFactory.Show(_buttons, true);
+            _tutorial.Closed += () => UiFactory.Show(_buttons, true);
             _quitHover.Changed = SetAngry;
             PlayIntro();
         }
@@ -154,6 +156,12 @@ namespace GridBattle
         {
             UiFactory.Show(_buttons, false);
             _settings.Open();
+        }
+
+        public void OpenTutorial()
+        {
+            UiFactory.Show(_buttons, false);
+            _tutorial.Open();
         }
 
         public void Quit()

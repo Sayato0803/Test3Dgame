@@ -16,6 +16,8 @@ namespace GridBattle.EditorTools
             // Nút nền trống: 9-slice để co giãn theo mọi kích thước nút mà góc bo không méo.
             if (assetPath.Contains("/btn_blank_")) t.spriteBorder = new UnityEngine.Vector4(90, 90, 90, 90);
             if (assetPath.Contains("/ui_panels/")) t.spriteBorder = new UnityEngine.Vector4(70, 70, 70, 70);
+            // Ribbon tiêu đề: chỉ giãn đoạn giữa theo chiều ngang, 2 đầu nhọn giữ nguyên.
+            if (assetPath.EndsWith("/ribbon.png")) t.spriteBorder = new UnityEngine.Vector4(64, 0, 64, 0);
         }
     }
 }

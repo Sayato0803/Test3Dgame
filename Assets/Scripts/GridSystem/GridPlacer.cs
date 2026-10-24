@@ -133,6 +133,8 @@ namespace GridBattle
                 return;
             }
 
+            if (_dragging != null && Input.GetKeyDown(KeyCode.R)) TurnDragged(1f);
+
             float scroll = Input.mouseScrollDelta.y;
             if (scroll != 0 && !MouseOverUi())
             {
@@ -141,12 +143,7 @@ namespace GridBattle
                     Camera cam = ActiveCam;
                     cam.fieldOfView = Mathf.Clamp(cam.fieldOfView - scroll *5f, 20f, 70f);
                 }
-                else
-                {
-                    _dragging.transform.Rotate(0,Mathf.Sign(scroll)*90f,0,Space.World);
-                    Reactions(_dragging)?.PlayTurn();
-                }
-
+                else TurnDragged(Mathf.Sign(scroll));
             }
 
             ClearHover();
@@ -251,6 +248,13 @@ namespace GridBattle
                 r?.Land(before - unit.transform.position.y);
             }
             OnDragEnded?.Invoke(unit, false);
+        }
+
+        /// <summary>Xoay quân đang cầm 90° (R / lăn chuột) -> đổi hướng tầm đánh.</summary>
+        private void TurnDragged(float dir)
+        {
+            _dragging.transform.Rotate(0f, dir * 90f, 0f, Space.World);
+            Reactions(_dragging)?.PlayTurn();
         }
 
         private static UnitReactions Reactions(GridUnit u) => u != null && u.TryGetComponent(out UnitReactions r) ? r : null;

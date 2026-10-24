@@ -7,7 +7,7 @@ namespace GridBattle
 {
     /// <summary>
     /// HUD trận đấu. UI nằm sẵn trong scene (HudCanvas) / prefab, script chỉ bật/tắt panel và gán chữ:
-    /// thanh trạng thái, bảng số King, thanh máu trên đầu King, nút Xác nhận, báo cáo battle, màn che đổi người,
+    /// thanh trạng thái, bảng số King, thanh máu trên đầu King, nút Xác nhận, báo cáo battle (giữ Tab), màn che đổi người,
     /// số damage bay lên, hiệu ứng manga khi đòn trúng, slow-mo đòn kết liễu, màn hình thắng, pause menu (Esc) + Cài đặt.
     /// King bị hạ: ẩn sạch GUI tới khi hoạt ảnh battle xong để thấy trọn cảnh kết liễu. F1: ẩn / hiện GUI bằng tay.
     /// Nút gọi các hàm public qua OnClick trong Inspector.
@@ -34,6 +34,7 @@ namespace GridBattle
         [SerializeField] private RectTransform _winBadge;
         [SerializeField] private CanvasGroup _pause;
         [SerializeField] private SettingsPanel _settings;
+        [SerializeField] private TutorialPanel _tutorial;
         [SerializeField] private Image _speedLines;
         [SerializeField] private Image _koTint;
         [SerializeField] private Image _koStamp;
@@ -41,10 +42,15 @@ namespace GridBattle
 
         [Tooltip("Các canvas bị tắt khi bấm F1 và trong cảnh kết liễu (HUD + tay bài).")]
         [SerializeField] private Canvas[] _hideOnF1;
+        [Tooltip("Tắt ở màn thắng (thanh trên chỉ còn chữ GAME OVER, nút pause không dùng được khi hết trận).")]
+        [SerializeField] private GameObject[] _hideOnGameOver;
 
         [Header("Prefab")]
         [SerializeField] private Slider _hpBarPrefab;
         [SerializeField] private Text _damageTextPrefab;
+
+        [Tooltip("Giữ Tab: Battle Report hiện chừng này dòng mới nhất.")]
+        [SerializeField] private int _reportLines = 8;
 
         [Header("Thời gian (giây)")]
         [SerializeField] private float _fadeDuration = 0.2f;
@@ -90,12 +96,14 @@ namespace GridBattle
         private bool _draggingLastFrame;
         private bool _hudHidden;     // F1
         private bool _cutscene;      // đang chạy cảnh kết liễu
+        private bool _reportShown;   // đang giữ Tab
 
         public bool IsPaused { get; private set; }
 
         private void Awake()
         {
             _settings.Closed += () => UiFactory.Show(_pause, true, _fadeDuration);
+            _tutorial.Closed += () => UiFactory.Show(_pause, true, _fadeDuration);
             _tapPrompt.DOFade(0.25f, 0.8f).SetLoops(-1, LoopType.Yoyo).SetUpdate(true);
             _winBadge.DOScale(1.06f, 0.5f).SetLoops(-1, LoopType.Yoyo).SetEase(Ease.InOutSine);
         }
@@ -147,6 +155,12 @@ namespace GridBattle
             _settings.Open();
         }
 
+        public void OpenTutorial()
+        {
+            UiFactory.Show(_pause, false, _fadeDuration);
+            _tutorial.Open();
+        }
+
         // ---------------- Cập nhật ----------------
 
         private void Update()
@@ -166,6 +180,24 @@ namespace GridBattle
                 _submit.interactable = _phases.CanSubmit();
                 _hint.text = _phases.HintText;
             }
+
+            // Giữ Tab: xem lịch sử Battle Report (các dòng mới nhất), nhả ra thì ẩn.
+            bool showReport = Input.GetKey(KeyCode.Tab) && _phases != null && !_phases.IsHandingOver && !IsPaused;
+            if (showReport != _reportShown)
+            {
+                _reportShown = showReport;
+                if (showReport) _reportText.text = ReportText();
+                UiFactory.Show(_report, showReport, _fadeDuration);
+            }
+        }
+
+        private string ReportText()
+        {
+            IReadOnlyList<string> lines = _phases.BattleReport;
+            if (lines.Count == 0) return "No battles yet.";
+            var last = new List<string>();
+            for (int i = Mathf.Max(0, lines.Count - _reportLines); i < lines.Count; i++) last.Add(lines[i]);
+            return string.Join("\n", last);
         }
 
         private void LateUpdate()
@@ -233,11 +265,9 @@ namespace GridBattle
             _hint.text = _phases.HintText;
             _submit.SetText(_phases.SubmitLabel);
             _submit.gameObject.SetActive(!over);
+            foreach (GameObject go in _hideOnGameOver) if (go != null) go.SetActive(!over);
 
-            bool showReport = phase == GamePhase.End; // màn WIN không hiện báo cáo
-            if (showReport) _reportText.text = string.Join("\n", _phases.BattleReport);
             _score.text = $"{ScoreLine(_phases.Player1)}\n{ScoreLine(_phases.Player2)}";
-            if (showReport != _report.gameObject.activeSelf || (showReport && _report.alpha < 1f)) UiFactory.Show(_report, showReport, _fadeDuration);
 
             if (_phases.IsHandingOver != _handover.gameObject.activeSelf || (_phases.IsHandingOver && _handover.alpha < 1f))
             {
@@ -416,6 +446,7 @@ namespace GridBattle
                 ApplyHudVisibility();
             }
             if (_settings.IsOpen) { _settings.Close(); return; }
+            if (_tutorial.IsOpen) { _tutorial.Close(); return; }
             if (_phases != null && _phases.Current == GamePhase.GameOver) return;
             SetPaused(!IsPaused);
         }

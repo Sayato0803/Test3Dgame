@@ -131,6 +131,8 @@ namespace GridBattle
 
             // Khớp chỏm cầu tâm nằm trên trục mỏng: (z - zc)^2 + r^2 = R^2  <=>  2*z*zc + K = z^2 + r^2  (K = R^2 - zc^2).
             double s11 = 0, s12 = 0, s22 = 0, b1 = 0, b2 = 0;
+            // Mesh không bật Read/Write: không khớp được chỏm cầu -> con ngươi xoay quanh tâm đĩa mắt và chìm vào trong mắt.
+            if (!em.isReadable) Debug.LogWarning($"[CharacterRig] Bật Read/Write cho model chứa '{eye.name}' (Import Settings > Model), con ngươi sẽ lún vào mắt.");
             Vector3[] verts = em.isReadable ? em.vertices : new Vector3[0];
             foreach (Vector3 v0 in verts)
             {

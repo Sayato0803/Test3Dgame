@@ -93,6 +93,15 @@ public class FinisherTests
         Assert.GreaterOrEqual(EventTime(clip, "splash"), 0f);
     }
 
+    // CharacterRig đọc vertex mắt để đặt con ngươi lên bề mặt nhãn cầu; tắt Read/Write thì con ngươi lún vào mắt.
+    [TestCase("Assets/King.fbx")]
+    [TestCase("Assets/Knight.fbx")]
+    [TestCase("Assets/Mage.fbx")]
+    public void UnitModelIsReadable(string path)
+    {
+        Assert.IsTrue(((ModelImporter)AssetImporter.GetAtPath(path)).isReadable, $"{path}: bật Read/Write (Import Settings > Model)");
+    }
+
     [Test]
     public void CardDrawClipEnds()
     {

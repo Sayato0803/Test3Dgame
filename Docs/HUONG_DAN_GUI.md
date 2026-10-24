@@ -15,11 +15,15 @@ GUI nằm sẵn trong scene và prefab: **chỉnh trực tiếp trong Unity Edit
 | `Assets/Prefab/UI/DamageText.prefab` | Số damage bay lên (cỡ chữ, màu, viền) |
 | `Assets/Resources/UI/SceneFader.prefab` | Màn đen khi chuyển scene |
 
-Khung kiểu gỗ & giấy da: `Image` của panel là **viền gỗ**, object con `Paper` (con đầu tiên) là **mặt giấy**. Đổi màu gỗ / giấy ở 2 Image này; chữ trên giấy màu mực nâu, tiêu đề đỏ son.
+Khung kiểu cartoon (bảng màu Resurrect 64, mẫu `Resources/GUI/ui_buttons/Hybrid.png`): `Image` của panel là **viền** (`panel.png`, tô vàng), object con `Paper` là **mặt container** (`panel_fill.png`, mỗi panel một màu: thanh trên xanh dương, bảng điểm xanh ngọc, pause tím…). Đổi màu ở Color của 2 Image này. Tiêu đề cửa sổ nằm trên object `Ribbon` (dải cạnh nhọn, đổi màu ở Color).
+
+**Giữ Tab** hiện Battle Report: lịch sử cả trận, mỗi dòng ghi `Turn N - P1: ...`; số dòng hiện ở ô `Report Lines` của `GameHud`. **R** (hoặc lăn chuột) xoay quân đang cầm 90°.
+
+**Tutorial:** prefab `Assets/Prefab/UI/TutorialPanel.prefab` (nút TUTORIAL ở Main Menu và menu Pause). Mỗi dòng là object `Row` gồm `Keys` (icon phím / chuột lấy từ `Art/InputIcons/.../Outline/PNG_4x`) + `Label`; thêm dòng = Duplicate 1 `Row` rồi đổi sprite và chữ.
 
 **F1** trong trận ẩn / hiện toàn bộ HUD + tay bài (danh sách canvas ở ô `Hide On F1` của `GameHud`). Khi có King bị hạ, các canvas này cũng tự ẩn tới hết cảnh kết liễu.
 
-**Nút chữ** dùng chung 1 kiểu: nền `btn_blank_*` (xanh lá = hành động chính, xanh dương = phụ, cam = quay lại, đỏ = thoát), chữ trắng. Khoảng cách chữ tới viền nằm ở Rect Transform của object con `Text` (Left/Right 28, Bottom 14, Top 8); chữ dài tự thu nhỏ nhờ `Best Fit` (Max Size = cỡ chữ gốc).
+**Nút chữ** dùng chung 1 kiểu: nền `btn_blank_*` (xanh lá = hành động chính, xanh dương = phụ, cam = quay lại, đỏ = thoát), chữ trắng viền tím than. Mỗi nút có 4 trạng thái qua Button → Transition `Sprite Swap`: `_hover` (Highlighted), `_focus` (Selected), `_pressed` (Pressed), `_disabled`. Khoảng cách chữ tới viền nằm ở Rect Transform của object con `Text` (Left/Right 28, Bottom 14, Top 8); chữ dài tự thu nhỏ nhờ `Best Fit` (Max Size = cỡ chữ gốc).
 
 Các panel ẩn sẵn (pause, settings, màn thắng…) bị tắt trong Hierarchy. Bật tạm để xem, **nhớ tắt lại** trước khi lưu scene.
 
@@ -30,10 +34,10 @@ Thay file trong `Assets/Resources/GUI/`, **giữ nguyên tên file**. Unity tự
 | Thư mục | Ảnh |
 |---|---|
 | `ui_buttons/` | `btn_start`, `btn_resume`, `btn_retry`, `icon_pause`; nút nền trống có chữ do game ghi lên: `btn_blank_green/blue/orange/red` |
-| `ui_panels/panel.png` | Nền mọi khung (thanh trên, bảng, cửa sổ). Ảnh trắng xám, game tự tô màu |
+| `ui_panels/` | `panel.png` viền khung, `panel_fill.png` mặt container, `ribbon.png` dải tiêu đề. Ảnh trắng xám, tô màu bằng Image → Color |
 | `sfx_text/` | Chữ manga: `sfx_bonk`, `sfx_zap`, `sfx_sweep`, `sfx_whoosh`, `sfx_ko`, `sfx_win`… |
 | `fx/` | `speed_lines.png` (tia khi trúng đòn), `anger_vein.png` (dấu 💢 khi tức) |
-| `fonts/` | Font Lilita One |
+| `fonts/` | Đang dùng `ARCO for OSX.otf`. **Đừng dùng `ARCO.ttf`**: bảng mã Symbol, Unity không đọc được nên rơi về Arial. Arco không có dấu tiếng Việt |
 
 Ảnh thẻ bài nằm ở `Assets/AIModels/CardSprites/CardArt_King/Knight/Mage/Scout.png`.
 

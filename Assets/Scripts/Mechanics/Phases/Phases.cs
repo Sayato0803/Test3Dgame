@@ -37,6 +37,8 @@ namespace GridBattle
 
         public GamePhase Current { get; private set; } = GamePhase.Deploy;
         public Player CurrentPlayer { get; private set; }
+        /// <summary>Lượt tấn công thứ mấy (mỗi lần vào Attack +1); ghi kèm mỗi dòng Battle Report.</summary>
+        public int Turn { get; private set; }
 
         /// <summary>Đang hiện màn che đổi người: chặn mọi thao tác.</summary>
         public bool IsHandingOver { get; private set; }
@@ -88,6 +90,7 @@ namespace GridBattle
         private void EnterPhase(GamePhase phase, Player player)
         {
             if (player != CurrentPlayer) IsHandingOver = true; // đổi người -> che màn hình trước
+            if (phase == GamePhase.Attack) Turn++;
             Current = phase;
             CurrentPlayer = player;
             bool lookAtOpponent = phase == GamePhase.Attack || phase == GamePhase.End;
@@ -144,7 +147,7 @@ namespace GridBattle
         {
             Player attacker = CurrentPlayer;
             Player defender = attacker.Opponent;
-            _battleReport.Clear();
+            int reportStart = _battleReport.Count;
             var hitters = new HashSet<GridUnit>();
             var results = new List<(GridUnit king, KingStats stats, int damage, GridUnit squasher, List<GridUnit> rangeHitters)>();
 
@@ -174,8 +177,8 @@ namespace GridBattle
                 stats.TakeDamage(damage);
                 stats.Reveal(king.Coord);
                 results.Add((king, stats, damage, squasher, rangeHitters));
-                _battleReport.Add($"King at {king.Coord} " + (squasher != null ? "SQUASHED, " : "") +
-                                  $"took {damage} dmg, {stats.Health}/{stats.MaxHealth} HP left" + (stats.IsDead ? " - DEFEATED" : ""));
+                Report(attacker, $"King at {king.Coord} " + (squasher != null ? "SQUASHED, " : "") +
+                                 $"took {damage} dmg, {stats.Health}/{stats.MaxHealth} HP left" + (stats.IsDead ? " - DEFEATED" : ""));
             }
 
             // 2. Hoạt ảnh. King chết vì đòn từ xa: quân đánh trúng gần King nhất ra đòn kết liễu (clip PowerSlash / ZapCharge),
@@ -233,8 +236,7 @@ namespace GridBattle
             }
             _busyUntil = Time.time + busy;
 
-            if (_battleReport.Count == 0) _battleReport.Add("No King was hit.");
-            foreach (string line in _battleReport) Debug.Log($"[Battle] {attacker.DisplayName}: {line}");
+            if (_battleReport.Count == reportStart) Report(attacker, "No King was hit.");
 
             if (AllKingsDead(defender))
             {
@@ -514,10 +516,16 @@ namespace GridBattle
                     if (grid.GetCell(corner + new Vector2Int(dx, dy)) != null)
                         CartoonFx.Puff(grid.CellToWorld(corner + new Vector2Int(dx, dy)) + Vector3.up * 0.1f, 0.6f, 5);
             Sfx.Play(found > 0 ? SfxId.Ding : SfxId.Deny, 1f, 0f);
-            _battleReport.Clear();
-            _battleReport.Add(found > 0 ? $"Scout found {found} King(s)!" : "Scout found nothing.");
+            Report(CurrentPlayer, found > 0 ? $"Scout found {found} King(s)!" : "Scout found nothing.");
             RefreshKingVisibility();
             StateChanged?.Invoke();
+        }
+
+        /// <summary>Lịch sử cả trận (không xoá giữa các lượt), mỗi dòng kèm lượt + người ra đòn.</summary>
+        private void Report(Player by, string line)
+        {
+            _battleReport.Add($"Turn {Turn} - {by.DisplayName}: {line}");
+            Debug.Log($"[Battle] {_battleReport[^1]}");
         }
 
         // ---------------- Cho HUD (GameHud) ----------------
