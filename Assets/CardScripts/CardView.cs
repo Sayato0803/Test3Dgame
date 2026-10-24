@@ -93,6 +93,9 @@ namespace CardScripts
         /// </summary>
         public Func<CardView, bool> ClickHandler { get; set; }
 
+        /// <summary>Chuột phải vào lá (xem chi tiết). Không tiêu hao lá.</summary>
+        public Action<CardView> RightClickHandler { get; set; }
+
         /// <summary>Dữ liệu tuỳ ý của người tạo lá bài (vd loại quân).</summary>
         public object Tag { get; set; }
 
@@ -201,6 +204,11 @@ namespace CardScripts
         public void OnPointerClick(PointerEventData eventData)
         {
             if (isConsumed) return;
+            if (eventData.button == PointerEventData.InputButton.Right)
+            {
+                RightClickHandler?.Invoke(this);
+                return;
+            }
             if (ClickHandler != null && !ClickHandler(this))
             {
                 Deny();

@@ -7,7 +7,8 @@ namespace GridBattle
 {
     /// <summary>
     /// Tay bài trong trận: thay cho nút OnGUI cũ. Số lá mỗi loại = số quân người chơi hiện tại còn được tạo
-    /// (Phases.RemainingSpawns), nên Deploy có 2 lá King, Attack có 2 Knight + 2 Mage.
+    /// (Phases.RemainingSpawns), nên Deploy có 2 lá King, Attack luôn có 1 Knight + 1 Mage (dùng không giới hạn).
+    /// Chuột phải vào lá -> xem ảnh thẻ phóng to + mô tả chức năng bên dưới.
     /// Bấm lá -> GridPlacer.TrySpawnFromCard (quân bay ra theo chuột). Huỷ kéo -> lá được chia lại.
     /// </summary>
     public class CardHand : MonoBehaviour
@@ -21,7 +22,7 @@ namespace GridBattle
         [SerializeField] private Sprite _mageSprite;
         [SerializeField] private Sprite _shineSprite;
 
-        [Header("Mô tả trên ô giấy cuối thẻ")]
+        [Header("Mô tả chức năng (chuột phải vào thẻ để xem)")]
         [SerializeField, TextArea] private string _kingText = "Giấu trên bàn mình\n10 máu";
         [SerializeField, TextArea] private string _knightText = "Tầm đánh 3 ô\nphía trước";
         [SerializeField, TextArea] private string _mageText = "Tầm đánh 4 ô\nphía trước";
@@ -153,23 +154,7 @@ namespace GridBattle
             art.color = Color.white;
             rt.gameObject.AddComponent<Mask>().showMaskGraphic = true;
 
-            if (sprite != null)
-            {
-                string desc = kind switch
-                {
-                    UnitKind.King => _kingText,
-                    UnitKind.Knight => _knightText,
-                    _ => _mageText
-                };
-                // Ô giấy trống ở đáy thẻ (khoảng 6%..27% chiều cao).
-                Text t = UiFactory.Label("Desc", rt, desc, 17, TextAnchor.MiddleCenter, new Color(0.36f, 0.22f, 0.12f), FontStyle.Bold);
-                t.rectTransform.anchorMin = new Vector2(0.12f, 0.07f);
-                t.rectTransform.anchorMax = new Vector2(0.88f, 0.26f);
-                t.rectTransform.offsetMin = t.rectTransform.offsetMax = Vector2.zero;
-                t.lineSpacing = 0.9f;
-                Object.Destroy(t.GetComponent<Shadow>());
-            }
-            else
+            if (sprite == null)
             {
                 // Chưa gán hình: lá màu + tên quân.
                 art.color = kind == UnitKind.King ? new Color(0.85f, 0.7f, 0.25f)
@@ -189,7 +174,34 @@ namespace GridBattle
             var view = rt.gameObject.AddComponent<CardView>();
             view.Configure(art, shine, null);
             view.ClickHandler = OnCardClicked;
+            view.RightClickHandler = c => ShowPreview((UnitKind)c.Tag, art.sprite);
             return view;
+        }
+
+        /// <summary>Ảnh thẻ phóng to giữa màn hình + mô tả chức năng bên dưới. Bấm bất kỳ đâu để đóng.</summary>
+        private void ShowPreview(UnitKind kind, Sprite sprite)
+        {
+            Image dim = UiFactory.Panel("CardPreview", _hand.parent, new Color(0f, 0f, 0f, 0.7f));
+            dim.rectTransform.Stretch();
+            var close = dim.gameObject.AddComponent<Button>();
+            close.transition = Selectable.Transition.None;
+            close.onClick.AddListener(() => Destroy(dim.gameObject));
+
+            Image art = UiFactory.Panel("Art", dim.transform, Color.white, false);
+            art.sprite = sprite;
+            art.preserveAspect = true;
+            art.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0f, 130f), new Vector2(_cardSize.x * 2f, _cardSize.y * 2f));
+            string desc = kind switch
+            {
+                UnitKind.King => _kingText,
+                UnitKind.Knight => _knightText,
+                _ => _mageText
+            };
+            UiFactory.Label("Desc", dim.transform, $"{kind}\n{desc}", 34, TextAnchor.UpperCenter, null, FontStyle.Bold)
+                .rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0f, -230f), new Vector2(900f, 200f));
+
+            Sfx.Play(SfxId.CardFlip);
+            UiFactory.Show(UiFactory.Group(dim.gameObject, false), true);
         }
     }
 }

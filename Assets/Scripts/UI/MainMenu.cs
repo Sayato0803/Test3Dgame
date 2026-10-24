@@ -94,9 +94,9 @@ namespace GridBattle
 
             RectTransform list = UiFactory.Rect("Buttons", root).Place(new Vector2(0f, 0.5f), new Vector2(110f, -110f), new Vector2(460f, 380f));
             UiFactory.Vertical(list, 26f);
-            UiFactory.Button("Play", list, "Chơi", () => SceneFader.Load(_gameScene), 40).Height(100f);
-            UiFactory.Button("Settings", list, "Cài đặt", OpenSettings, 40).Height(100f);
-            UiFactory.Button("Exit", list, "Thoát", Quit, 40).Height(100f);
+            UiFactory.Button("Play", list, "Chơi", () => SceneFader.Load(_gameScene), 40).Skin("btn_start").Height(100f);
+            UiFactory.Button("Settings", list, "Cài đặt", OpenSettings, 40).Skin("btn_blank_blue", true).Height(100f);
+            UiFactory.Button("Exit", list, "Thoát", Quit, 40).Skin("btn_blank_red", true).Height(100f);
             _buttons = UiFactory.Group(list.gameObject, true);
 
             _settings = new SettingsPanel(root, () => UiFactory.Show(_buttons, true));

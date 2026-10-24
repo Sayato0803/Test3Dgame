@@ -35,6 +35,7 @@ namespace GridBattle
         private float _heldTime;
         private Vector3 _lastPos;
         private Vector3 _swing;          // độ nghiêng theo vận tốc kéo (làm mượt)
+        private float _shake;            // độ lắc khi đang kéo, 0 = đứng yên (làm mượt)
         private float _idleSeed;
         private float _flashUntil;
 
@@ -95,7 +96,7 @@ namespace GridBattle
             Sfx.Play(SfxId.Pop);
         }
 
-        /// <summary>Bị nhấc lên: giật mình (co người + rung) rồi giãy liên tục trong Update.</summary>
+        /// <summary>Bị nhấc lên: giật mình (co người + rung 1 nhịp); sau đó chỉ nghiêng/lắc theo hướng kéo trong Update.</summary>
         public void BeginHeld()
         {
             if (_dead || _scripted) return;
@@ -111,6 +112,7 @@ namespace GridBattle
             }
             _held = true;
             _heldTime = 0f;
+            _shake = 0f;
             _lastPos = transform.position;
             _visual.DOKill(true);
             _visual.localScale = _baseScale;
@@ -275,6 +277,7 @@ namespace GridBattle
                 Sfx.Play(SfxId.Punch, 0.5f);
                 CartoonFx.Puff(Feet + Vector3.up * 0.05f, 1.3f, 18);
                 CartoonFx.StarBurst(Feet + Vector3.up * 0.3f, new Color(1f, 0.8f, 0.3f), 14, 5f);
+                CartoonFx.Comic("bonk", Feet + Vector3.up * 0.8f);
                 _flashUntil = Time.time + 0.25f;
 
                 Sequence s = DOTween.Sequence().SetTarget(_visual);
@@ -328,6 +331,7 @@ namespace GridBattle
                 Sfx.Play(SfxId.SlideWhistle, 0.9f, 0f, 0.05f);
                 if (CameraRig.Instance != null) CameraRig.Instance.Shake(0.25f, 0.3f);
                 CartoonFx.Puff(start + Vector3.up * 0.05f, 1.4f, 20);
+                CartoonFx.Comic("ko", start + Vector3.up * TopHeight);
             });
             s.Append(_visual.DOScale(new Vector3(b.x * 0.55f, b.y * 1.9f, b.z * 0.55f), 0.1f).SetEase(Ease.OutQuad));
             // Vút lên: nhanh dần rồi chậm lại ở đỉnh, xoay tít quanh trục đứng, nhỏ dần vì xa.
@@ -376,7 +380,7 @@ namespace GridBattle
             s.Append(_visual.DOScale(new Vector3(0f, b.y * 1.6f, 0f), 0.35f).SetEase(Ease.InBack));
             s.AppendCallback(() =>
             {
-                CartoonFx.Twinkle(Feet + Vector3.up * TopHeight * 0.8f);
+                CartoonFx.Comic("ko", Feet + Vector3.up * TopHeight * 0.8f);
                 _visual.gameObject.SetActive(false);
             });
         }
@@ -416,6 +420,7 @@ namespace GridBattle
             Sfx.Play(SfxId.SlideWhistle, 0.7f, 0.05f, 0.05f);
             if (CameraRig.Instance != null) CameraRig.Instance.Shake(0.2f, 0.25f);
             CartoonFx.StarBurst(start + Vector3.up * TopHeight * 0.5f, Color.white, 12, 6f);
+            CartoonFx.Comic("ko", start + Vector3.up * TopHeight);
 
             Quaternion rot0 = _visual.rotation;
             Sequence s = DOTween.Sequence().SetTarget(_visual);
@@ -452,6 +457,39 @@ namespace GridBattle
                 Sfx.Play(SfxId.Splash, 1f, 0.05f);
                 _visual.gameObject.SetActive(false);
             });
+        }
+
+        /// <summary>Ăn mừng chiến thắng (lặp mãi): nhún nhảy 2 nhịp, lắc lư trái phải, bật cao xoay 1 vòng.</summary>
+        public void PlayDance(float delay)
+        {
+            if (this == null || _dead) return;
+            _held = false;
+            _scripted = true;
+            ResetVisual();
+            Vector3 b = _baseScale;
+            float up = 0.35f / Mathf.Max(transform.lossyScale.y, 0.001f);
+            var squash = new Vector3(b.x * 1.15f, b.y * 0.85f, b.z * 1.15f);
+            var stretch = new Vector3(b.x * 0.9f, b.y * 1.15f, b.z * 0.9f);
+
+            Sequence s = DOTween.Sequence().SetTarget(_visual).SetDelay(delay);
+            for (int i = 0; i < 2; i++)
+            {
+                s.Append(_visual.DOScale(squash, 0.1f));
+                s.Append(_visual.DOLocalMoveY(up * 0.5f, 0.15f).SetEase(Ease.OutQuad));
+                s.Join(_visual.DOScale(stretch, 0.15f));
+                s.Append(_visual.DOLocalMoveY(0f, 0.15f).SetEase(Ease.InQuad));
+                s.Join(_visual.DOScale(b, 0.15f));
+            }
+            s.Append(_visual.DOLocalRotate(new Vector3(0f, 0f, 18f), 0.18f).SetEase(Ease.OutQuad));
+            s.Append(_visual.DOLocalRotate(new Vector3(0f, 0f, -18f), 0.3f).SetEase(Ease.InOutQuad));
+            s.Append(_visual.DOLocalRotate(Vector3.zero, 0.18f).SetEase(Ease.InQuad));
+            s.Append(_visual.DOScale(squash, 0.1f));
+            s.Append(_visual.DOLocalMoveY(up, 0.25f).SetEase(Ease.OutQuad));
+            s.Join(_visual.DOScale(stretch, 0.25f));
+            s.Join(_visual.DOLocalRotate(new Vector3(0f, 360f, 0f), 0.5f, RotateMode.LocalAxisAdd));
+            s.Append(_visual.DOLocalMoveY(0f, 0.25f).SetEase(Ease.InQuad));
+            s.Join(_visual.DOScale(b, 0.25f));
+            s.SetLoops(-1);
         }
 
         /// <summary>Hiệu ứng huỷ (quân mới bị huỷ khi kéo): thu nhỏ rồi xoá.</summary>
@@ -536,6 +574,7 @@ namespace GridBattle
                 if (!fx) return;
                 Sfx.Play(SfxId.Poof, 1f, 0.08f);
                 CartoonFx.SmokeTrail(Feet, TopHeight);
+                CartoonFx.Comic("whoosh", Feet + Vector3.up * TopHeight);
             });
             s.Append(_visual.DOScale(Vector3.zero, 0.12f).SetEase(Ease.InBack));
             s.AppendCallback(() =>
@@ -593,17 +632,14 @@ namespace GridBattle
             Vector3 targetSwing = new(Mathf.Clamp(-localVel.z * 4f, -35f, 35f), 0f, Mathf.Clamp(localVel.x * 4f, -35f, 35f));
             _swing = Vector3.Lerp(_swing, targetSwing, 1f - Mathf.Exp(-8f * Time.deltaTime));
 
-            // Giãy: các tần số lệch nhau cho đỡ máy móc.
-            float kick = 10f + 6f * Mathf.Sin(t * 1.7f);
-            var wiggle = new Vector3(
-                Mathf.Sin(t * 17f) * kick * 0.6f,
-                Mathf.Sin(t * 9f) * 12f,
-                Mathf.Sin(t * 23f + 1.3f) * kick);
+            // Chỉ lắc khi đang di chuyển: dao động dọc theo trục nghiêng (= hướng di chuyển), mạnh theo tốc độ; đứng yên thì im.
+            float speed = Mathf.Clamp01(localVel.magnitude / 6f);
+            _shake = Mathf.Lerp(_shake, speed, 1f - Mathf.Exp(-10f * Time.deltaTime));
+            Vector3 wobble = _swing.normalized * (Mathf.Sin(t * 22f) * 12f * _shake);
 
-            _visual.localRotation = Quaternion.Euler(_swing + wiggle);
-            _visual.localPosition = new Vector3(0f, Mathf.Abs(Mathf.Sin(t * 11f)) * 0.08f, 0f);
-            float stretch = 1f + Mathf.Sin(t * 14f) * 0.07f;
-            _visual.localScale = new Vector3(_baseScale.x / Mathf.Sqrt(stretch), _baseScale.y * stretch, _baseScale.z / Mathf.Sqrt(stretch));
+            _visual.localRotation = Quaternion.Euler(_swing + wobble);
+            _visual.localPosition = Vector3.zero;
+            _visual.localScale = _baseScale;
         }
 
         /// <summary>Đứng yên: thở nhẹ. Đang chui dưới bàn: ló lên thụt xuống, ngó nghiêng.</summary>

@@ -139,6 +139,40 @@ namespace GridBattle
 
         public static void SetText(this Button b, string text) => b.GetComponentInChildren<Text>().text = text;
 
+        /// <summary>
+        /// Thay nền nút bằng ảnh Resources/GUI/ui_buttons/&lt;sprite&gt;. Ảnh đã có chữ/icon: ẩn label.
+        /// keepText (ảnh nền trống btn_blank_*): ảnh 9-slice co giãn theo nút, giữ label + viền chữ đậm. Thiếu ảnh thì giữ nút chữ.
+        /// </summary>
+        public static Button Skin(this Button b, string sprite, bool keepText = false)
+        {
+            Sprite s = Resources.Load<Sprite>("GUI/ui_buttons/" + sprite);
+            if (s == null) return b;
+            var img = (Image)b.targetGraphic;
+            img.sprite = s;
+            img.color = Color.white;
+            b.GetComponent<Outline>().enabled = false;
+            Text label = b.GetComponentInChildren<Text>();
+            if (keepText)
+            {
+                img.type = Image.Type.Sliced;
+                img.pixelsPerUnitMultiplier = 2.5f; // viền 9-slice 90px -> ~36 đơn vị UI, vừa cả nút cao 64
+                label.color = Color.white;
+                label.rectTransform.offsetMin = new Vector2(0f, 8f); // bóng đáy nút dày hơn đỉnh
+                var o = label.gameObject.AddComponent<Outline>();
+                o.effectColor = new Color(0.1f, 0.06f, 0.05f, 1f);
+                o.effectDistance = new Vector2(3f, -3f);
+            }
+            else
+            {
+                img.preserveAspect = true;
+                label.enabled = false;
+            }
+            ColorBlock colors = b.colors;
+            colors.normalColor = colors.selectedColor = colors.highlightedColor = Color.white;
+            b.colors = colors;
+            return b;
+        }
+
         public static Slider Slider(string name, Transform parent, float min, float max, float value, Action<float> onChange)
         {
             RectTransform root = Rect(name, parent);

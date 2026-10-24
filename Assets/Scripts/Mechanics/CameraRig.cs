@@ -25,6 +25,17 @@ namespace GridBattle
             _camera.transform.DOKill(true);
             _camera.transform.DOShakePosition(duration, strength, 25, 90f, false, true);
         }
+        /// <summary>Giật zoom vào điểm va chạm rồi nảy về (đòn trúng kiểu manga). Chạy cả lúc hitstop. Bỏ qua khi đang bay.</summary>
+        public void ZoomPunch(float amount = 7f, float duration = 0.3f)
+        {
+            if (IsMoving) return;
+            _camera.DOKill(true); // cú trước chạy xong (FOV về gốc) rồi mới đo FOV gốc
+            float fov = _camera.fieldOfView;
+            DOTween.Sequence().SetTarget(_camera).SetUpdate(true)
+                .Append(_camera.DOFieldOfView(fov - amount, 0.05f).SetEase(Ease.OutQuad))
+                .Append(_camera.DOFieldOfView(fov, duration).SetEase(Ease.OutBack));
+        }
+
         public bool IsMoving => _tween != null && _tween.IsActive() && _tween.IsPlaying();
         public int CurrentIndex { get; private set; } = -1;
 

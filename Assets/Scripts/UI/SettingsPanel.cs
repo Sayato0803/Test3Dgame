@@ -33,9 +33,9 @@ namespace GridBattle
             Row(list, "Tốc độ camera");
             UiFactory.Slider("CameraSpeed", list, 0.5f, 2f, GameSettings.CameraSpeed, v => GameSettings.CameraSpeed = v).Height(36f);
 
-            _qualityButton = UiFactory.Button("Quality", list, "", CycleQuality, 28).Height(64f);
-            _fullscreenButton = UiFactory.Button("Fullscreen", list, "", ToggleFullscreen, 28).Height(64f);
-            UiFactory.Button("Close", list, "Đóng", Close, 32).Height(72f);
+            _qualityButton = UiFactory.Button("Quality", list, "", CycleQuality, 28).Skin("btn_blank_blue", true).Height(64f);
+            _fullscreenButton = UiFactory.Button("Fullscreen", list, "", ToggleFullscreen, 28).Skin("btn_blank_blue", true).Height(64f);
+            UiFactory.Button("Close", list, "Đóng", Close, 32).Skin("btn_blank_orange", true).Height(72f);
             RefreshLabels();
         }
 

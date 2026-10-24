@@ -34,6 +34,7 @@ namespace GridBattle
         [SerializeField] private Color _previewAttackColor = new(0.55f, 0.8f, 1f, 0.4f);
 
         private readonly int _overViewCam = 2;
+        public int OverviewCameraIndex => _overViewCam;
         private int _cameraIndex;
         public Camera ActiveCam => _rig != null ? _rig.Camera : _camera[_cameraIndex];
 

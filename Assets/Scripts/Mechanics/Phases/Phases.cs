@@ -22,8 +22,6 @@ namespace GridBattle
 
         [Header("Luật")]
         [SerializeField] private int _kingsPerPlayer = 2;
-        [SerializeField] private int _knightsPerPlayer = 2;
-        [SerializeField] private int _magesPerPlayer = 2;
 
         public GamePhase Current { get; private set; } = GamePhase.Deploy;
         public Player CurrentPlayer { get; private set; }
@@ -35,8 +33,6 @@ namespace GridBattle
         public event Action StateChanged;
         /// <summary>1 King trúng đòn (King, damage, delay giây trước khi hiệu ứng trúng đòn chạy) -> HUD hiện số damage.</summary>
         public event Action<GridUnit, int, float> KingHit;
-        /// <summary>1 King bị attacker đè bẹp trong battle (King, delay tới lúc va chạm) -> HUD hiện chữ "BẸP!".</summary>
-        public event Action<GridUnit, float> KingSquashed;
 
         /// <summary>Đang chạy hoạt ảnh battle (đè bẹp, King bị đánh văng): tạm khoá thao tác và Submit.</summary>
         public bool IsAnimating => Time.time < _busyUntil;
@@ -186,7 +182,6 @@ namespace GridBattle
                 if (r.squasher != null)
                 {
                     float impact = Squash(r.squasher, r.king, kr, death, r.push, hitIndex * 0.35f);
-                    KingSquashed?.Invoke(r.king, impact);
                     KingHit?.Invoke(r.king, r.damage, impact + 0.05f);
                     busy = Mathf.Max(busy, impact + 1.6f);
                 }
@@ -321,8 +316,6 @@ namespace GridBattle
                 case GamePhase.Deploy:
                     return CurrentPlayer.Kings.Count == _kingsPerPlayer;
                 case GamePhase.Attack:
-                    return CurrentPlayer.CountAttackers(UnitKind.Knight) == _knightsPerPlayer
-                        && CurrentPlayer.CountAttackers(UnitKind.Mage) == _magesPerPlayer;
                 case GamePhase.Setup:
                 case GamePhase.End:
                     return true;
@@ -342,9 +335,7 @@ namespace GridBattle
                 case GamePhase.Deploy:
                     return kind == UnitKind.King && CurrentPlayer.Kings.Count < _kingsPerPlayer;
                 case GamePhase.Attack:
-                    if (kind == UnitKind.Knight) return CurrentPlayer.CountAttackers(UnitKind.Knight) < _knightsPerPlayer;
-                    if (kind == UnitKind.Mage) return CurrentPlayer.CountAttackers(UnitKind.Mage) < _magesPerPlayer;
-                    return false;
+                    return kind != UnitKind.King; // Knight/Mage không giới hạn số lượng
                 default:
                     return false;
             }
@@ -412,15 +403,14 @@ namespace GridBattle
             StateChanged?.Invoke();
         }
 
-        /// <summary>Số quân loại này người chơi hiện tại còn được tạo (= số lá bài trên tay).</summary>
+        /// <summary>Số lá bài loại này trên tay. Knight/Mage không giới hạn nên luôn còn 1 lá (bộ bài vô hạn).</summary>
         public int RemainingSpawns(UnitKind kind)
         {
             if (IsHandingOver || CurrentPlayer == null) return 0;
             return Current switch
             {
                 GamePhase.Deploy when kind == UnitKind.King => _kingsPerPlayer - CurrentPlayer.Kings.Count,
-                GamePhase.Attack when kind == UnitKind.Knight => _knightsPerPlayer - CurrentPlayer.CountAttackers(UnitKind.Knight),
-                GamePhase.Attack when kind == UnitKind.Mage => _magesPerPlayer - CurrentPlayer.CountAttackers(UnitKind.Mage),
+                GamePhase.Attack when kind != UnitKind.King => 1,
                 _ => 0
             };
         }
@@ -447,8 +437,8 @@ namespace GridBattle
         {
             GamePhase.Deploy => $"Chọn thẻ King và đặt lên bàn mình ({CurrentPlayer.Kings.Count}/{_kingsPerPlayer})",
             GamePhase.Setup => "Có thể kéo King sang ô khác, rồi Xác nhận",
-            GamePhase.Attack => $"Dùng thẻ / kéo Knight ({CurrentPlayer.CountAttackers(UnitKind.Knight)}/{_knightsPerPlayer}), " +
-                                $"Mage ({CurrentPlayer.CountAttackers(UnitKind.Mage)}/{_magesPerPlayer}) trên bàn đối thủ",
+            GamePhase.Attack => $"Đặt bao nhiêu Knight ({CurrentPlayer.CountAttackers(UnitKind.Knight)}), " +
+                                $"Mage ({CurrentPlayer.CountAttackers(UnitKind.Mage)}) tuỳ ý trên bàn đối thủ, rồi Xác nhận",
             GamePhase.End => "Xem kết quả, rồi Kết thúc lượt",
             _ => ""
         };

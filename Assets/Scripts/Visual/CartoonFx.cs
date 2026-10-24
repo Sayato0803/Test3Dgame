@@ -187,6 +187,7 @@ namespace GridBattle
                 {
                     StarBurst(to, new Color(0.45f, 0.95f, 1f), 12, 4f);
                     StarBurst(to, new Color(0.65f, 0.4f, 1f), 8, 3f);
+                    Comic("zap", to + Vector3.up * 0.6f);
                     Object.Destroy(go);
                 });
             });
@@ -234,6 +235,7 @@ namespace GridBattle
                 s.Append(DOTween.To(() => lr.widthMultiplier, w => lr.widthMultiplier = w, 0f, 0.25f));
                 s.OnComplete(() => Object.Destroy(go));
                 StarBurst(center, new Color(1f, 0.95f, 0.75f), 8, 4.5f);
+                Comic("sweep", center + Vector3.up * 0.6f);
             });
         }
 
@@ -310,6 +312,32 @@ namespace GridBattle
             s.Append(go.transform.DOScale(0f, 0.25f).SetEase(Ease.InBack));
             s.OnComplete(() => Object.Destroy(go));
             StarBurst(pos, new Color(1f, 0.9f, 0.4f), 8, 2.5f);
+        }
+
+        /// <summary>Chữ tượng thanh kiểu manga (ảnh Resources/GUI/sfx_text/sfx_&lt;word&gt;) bật ra ở 'pos' rồi bay lên mờ dần.</summary>
+        public static void Comic(string word, Vector3 pos, float delay = 0f)
+        {
+            Sprite sprite = Resources.Load<Sprite>("GUI/sfx_text/sfx_" + word);
+            if (sprite == null) return;
+            DOVirtual.DelayedCall(Mathf.Max(0f, delay), () =>
+            {
+                Camera cam = Camera.main;
+                var go = new GameObject("Comic_" + word);
+                go.transform.position = cam != null ? pos - cam.transform.forward * 0.8f : pos; // nhích về phía camera để King không che chữ
+                var sr = go.AddComponent<SpriteRenderer>();
+                sr.sprite = sprite;
+                sr.sortingOrder = 100;
+                go.AddComponent<Billboard>();
+                go.transform.localScale = Vector3.zero;
+                float size = 1.4f / sprite.bounds.size.x; // rộng ~1.4 đơn vị bất kể kích thước ảnh
+                Sequence s = DOTween.Sequence().SetTarget(go.transform);
+                s.Append(go.transform.DOScale(size * 1.25f, 0.14f).SetEase(Ease.OutBack));
+                s.Append(go.transform.DOScale(size, 0.08f));
+                s.AppendInterval(0.35f);
+                s.Append(go.transform.DOMove(go.transform.position + Vector3.up * 0.5f, 0.4f).SetEase(Ease.OutQuad));
+                s.Join(sr.DOFade(0f, 0.4f));
+                s.OnComplete(() => Object.Destroy(go));
+            });
         }
 
         /// <summary>Vòng sao xoay quanh đầu (choáng) trong 'duration' giây.</summary>
