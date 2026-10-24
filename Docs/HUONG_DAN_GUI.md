@@ -1,20 +1,21 @@
 # Hướng dẫn tự sửa GUI
 
-GUI của game **được dựng bằng code lúc chạy**, không nằm sẵn trong scene. Vì vậy:
+GUI nằm sẵn trong scene và prefab: **chỉnh trực tiếp trong Unity Editor, không cần sửa code.** Script chỉ bật/tắt panel và ghi chữ lúc chạy.
 
-- Đổi **ảnh** → thay file PNG (không cần code).
-- Đổi **màu, font, vị trí, kích thước, chữ** → sửa vài con số trong code (các dòng ghi bên dưới).
-- Muốn **thử trực tiếp** → chỉnh trong Play mode, ưng rồi chép số vào code (mục 6).
+## 1. Cái gì nằm ở đâu
 
-## 1. File nào làm gì
-
-| File (`Assets/Scripts/UI/`) | Nội dung |
+| Chỗ | Nội dung |
 |---|---|
-| `UiFactory.cs` | Phong cách chung: màu, font, cách vẽ nút / panel / chữ |
-| `MainMenu.cs` | Màn hình chính: tiêu đề, nút PLAY / SETTINGS / QUIT |
-| `GameHud.cs` | Trong trận: thanh trên, bảng KINGS, nút CONFIRM, pause, banner, màn đổi lượt, màn thắng, menu tạm dừng |
-| `SettingsPanel.cs` | Bảng Settings |
-| `CardHand.cs` | Tay bài và bảng xem thẻ (chuột phải) |
+| Scene `GridTest` → `GameUI/HudCanvas` | Trong trận: thanh trên, bảng KINGS, nút CONFIRM, pause, banner, màn đổi lượt, màn thắng, menu tạm dừng |
+| Scene `GridTest` → `GameUI/CardHandCanvas` | Vùng tay bài (`Hand`) và bảng xem thẻ (`CardPreview`, chuột phải) |
+| Scene `MainMenu` → `MenuCanvas` | Tiêu đề, phụ đề, nút PLAY / SETTINGS / QUIT |
+| `Assets/Prefab/UI/SettingsPanel.prefab` | Bảng Settings, dùng chung cho menu chính và menu pause |
+| `Assets/Prefab/UI/Card.prefab` | 1 lá bài trên tay (ảnh nằm ở con `Body`, vệt sáng ở `ShineSweep`) |
+| `Assets/Prefab/UI/KingHpBar.prefab` | Thanh máu trên đầu King |
+| `Assets/Prefab/UI/DamageText.prefab` | Số damage bay lên (cỡ chữ, màu, viền) |
+| `Assets/Resources/UI/SceneFader.prefab` | Màn đen khi chuyển scene |
+
+Các panel ẩn sẵn (pause, settings, màn thắng…) bị tắt trong Hierarchy. Bật tạm để xem, **nhớ tắt lại** trước khi lưu scene.
 
 ## 2. Đổi ảnh (dễ nhất)
 
@@ -32,74 +33,30 @@ Thay file trong `Assets/Resources/GUI/`, **giữ nguyên tên file**. Unity tự
 
 **Lưu ý với ảnh nút nền trống và `panel.png`:** đây là ảnh 9-slice, phần góc giữ nguyên còn phần giữa co giãn. Nếu vẽ lại thì giữ góc bo nằm trong khoảng 90 px (nút) hoặc 70 px (panel) tính từ mép ảnh. Hai con số này được đặt trong `Assets/Scripts/Editor/GuiSpriteImporter.cs`.
 
-## 3. Đổi màu và font — `UiFactory.cs`
+## 3. Đổi màu, font, vị trí, kích thước, chữ
 
-```csharp
-PanelColor  = new(0.16f, 0.22f, 0.45f, 0.96f);  // dòng 15: màu nền khung (xanh navy)
-TextOutline = new(0.07f, 0.06f, 0.16f, 1f);     // dòng 16: viền chữ
-Accent      = new(1f, 0.83f, 0.22f, 1f);         // dòng 19: màu nhấn (tiêu đề vàng)
-TextColor   = new(0.94f, 0.94f, 0.97f, 1f);      // dòng 20: màu chữ thường
-```
+Chọn phần tử trong Hierarchy rồi chỉnh trong Inspector:
 
-Màu viết theo dạng (đỏ, xanh lá, xanh dương, độ đậm), mỗi số từ 0 đến 1.
+- **Vị trí / kích thước:** Rect Transform (Pos X/Y, Width/Height, Anchor). Màn hình chuẩn 1920×1080, màn khác cỡ tự co giãn (Canvas Scaler).
+- **Màu nền khung:** component `Image` → Color. **Màu / font / cỡ chữ:** component `Text`. **Viền chữ:** `Outline`, `Shadow`.
+- **Nút trong cột dọc** (menu chính, pause, settings): chiều cao ở `Layout Element`, khoảng cách ở `Vertical Layout Group` của object cha.
+- **Kiểu nút:** đổi ảnh ở `Image` → Source Image (ảnh trong `Assets/Resources/GUI/ui_buttons/`).
+- **Nút bấm gọi hàm gì:** `Button` → On Click (). Ví dụ CONFIRM gọi `GameHud.Submit`.
 
-Đổi font: chép file `.ttf` vào `Assets/Resources/GUI/fonts/`, rồi sửa tên ở dòng 24 (`"GUI/fonts/LilitaOne-Regular"`, không ghi đuôi `.ttf`).
+Thông số không thuộc 1 phần tử cụ thể (thời gian fade, banner, hitstop, slow-mo, màu thanh máu…) nằm ở Inspector của component `GameHud`, `CardHand`, `MainMenu`, `SettingsPanel`, `SceneFader`, `ButtonPop`.
 
-## 4. Đổi vị trí và kích thước — hàm `Place(...)`
+## 4. Chữ do game tự ghi
 
-Mọi phần tử được đặt bằng một dòng dạng:
+Chữ đang hiển thị trong scene ở các ô sau chỉ là chữ mẫu, game ghi đè lúc chạy:
 
-```csharp
-.Place(new Vector2(neoX, neoY), new Vector2(lệchX, lệchY), new Vector2(rộng, cao));
-```
-
-- **neo:** điểm bám trên màn hình, từ 0 đến 1. `(0,0)` = góc dưới trái, `(1,1)` = góc trên phải, `(0.5,0.5)` = giữa màn hình.
-- **lệch:** dịch khỏi điểm neo, tính bằng pixel trên màn hình chuẩn 1920×1080 (dương = sang phải / lên trên).
-- **rộng, cao:** kích thước, cũng tính bằng pixel chuẩn 1920×1080. Màn hình khác cỡ thì game tự co giãn theo.
-
-Ví dụ: nút CONFIRM ở `GameHud.cs` dòng 130:
-
-```csharp
-.Place(new Vector2(1f, 0f), new Vector2(-40f, 40f), new Vector2(300f, 90f));
-//      bám góc dưới phải   cách mép 40 px          rộng 300, cao 90
-```
-
-Các dòng hay chỉnh:
-
-| Phần tử | Vị trí |
-|---|---|
-| Thanh trên (tên phase + gợi ý) | `GameHud.cs` dòng 111 |
-| Bảng "P1 KINGS / P2 KINGS" | `GameHud.cs` dòng 122 |
-| Nút CONFIRM | `GameHud.cs` dòng 130 |
-| Nút pause | `GameHud.cs` dòng 133 |
-| Bảng BATTLE REPORT | `GameHud.cs` dòng 139 |
-| Banner đổi phase | `GameHud.cs` dòng 150 |
-| Màn thắng: ảnh WIN, chữ, REPLAY, MENU | `GameHud.cs` dòng 185, 188, 190, 192 |
-| Thanh máu King | `GameHud.cs` dòng 270 |
-| Menu chính: tiêu đề, phụ đề, cột nút | `MainMenu.cs` dòng 100, 104, 106 |
-| Tay bài | `CardHand.cs` dòng 48. Cỡ thẻ, khoảng cách, độ cao: chỉnh thẳng trong Inspector (scene `GridTest` → object có component `CardHand`) |
-
-Nút trong cột dọc (menu chính, pause, settings) không dùng `Place`. Chiều cao nút nằm ở `.Height(110f)` cuối dòng, còn khoảng cách giữa các nút ở `UiFactory.Vertical(list, 26f)`.
-
-## 5. Đổi chữ và kiểu nút
-
-- **Chữ trên nút:** tham số thứ 3 của `UiFactory.Button(...)`, ví dụ `"PLAY"`, `"CONFIRM"`. Cỡ chữ là số ngay sau đó.
 - **Tên phase và dòng gợi ý:** `Assets/Scripts/Mechanics/Phases/Phases.cs`, các mục `PhaseName`, `Hint()`, `SubmitLabel`.
-- **Mô tả thẻ (chuột phải):** chỉnh trong Inspector của `CardHand` (các ô King/Knight/Mage/Scout Text).
-- **Kiểu nút:** đuôi `.Skin(...)`:
-  - `.Skin("btn_blank_green", true)`: nút nền trống, giữ chữ do game ghi. Màu có sẵn: green / blue / orange / red.
-  - `.Skin("btn_start")`: nút ảnh đã có sẵn chữ, game ẩn chữ đi.
-  - Bỏ hẳn `.Skin(...)`: nút vuông đơn giản theo màu ở mục 3.
-- **Cỡ chữ manga bay lên (BONK/ZAP…):** số `1.4f` ở `Assets/Scripts/Visual/CartoonFx.cs` dòng 332 (độ rộng tính bằng mét trong thế giới).
+- **Mô tả thẻ (chuột phải):** Inspector của `CardHand` (các ô King/Knight/Mage/Scout Text).
+- **Cỡ chữ manga bay lên (BONK/ZAP…):** số `1.4f` ở `Assets/Scripts/Visual/CartoonFx.cs`, hàm `Comic` (độ rộng tính bằng mét trong thế giới).
 
-## 6. Thử trực tiếp rồi chép số vào code
+## 5. Thử trực tiếp
 
-1. Bấm Play.
-2. Trong cửa sổ Hierarchy, mở `HudCanvas` (trong trận) hoặc `MenuCanvas` (menu chính) và chọn phần tử cần chỉnh, ví dụ `Submit`, `TopBar`, `Scoreboard`.
-3. Kéo hoặc sửa số trong Rect Transform ở Inspector cho tới khi ưng. Lúc này **Pos X / Pos Y** chính là "lệch", còn **Width / Height** là "rộng, cao".
-4. **Ghi lại các số.** Khi thoát Play mode, Unity xoá mọi thay đổi này.
-5. Chép các số vào dòng `Place(...)` tương ứng ở mục 4.
+Chỉnh trong Play mode để xem ngay, nhưng **Unity bỏ mọi thay đổi khi thoát Play mode**. Ưng rồi thì thoát Play mode và chỉnh lại y như vậy (hoặc chuột phải component → Copy Component, thoát Play, → Paste Component Values).
 
-## 7. Âm thanh
+## 6. Âm thanh
 
 Xem `Assets/Audio/Sfx/README.txt`. Tóm tắt: kéo file vào ô tương ứng trong `Assets/Resources/Audio/SfxLibrary.asset`.

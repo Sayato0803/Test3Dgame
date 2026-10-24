@@ -10,13 +10,23 @@ namespace GridBattle
     /// <summary>
     /// Màn hình menu chính kiểu hybrid-casual: tiêu đề lớn + nút PLAY / SETTINGS / QUIT bên trái, 3 quân đứng bên phải.
     /// Các quân quay đầu + đảo mắt theo con trỏ; rê chuột vào QUIT thì giơ vũ khí, cau mày, rung người vì tức.
-    /// UI dựng bằng code qua UiFactory.
+    /// UI nằm sẵn trong scene (MenuCanvas); nút gọi các hàm public qua OnClick trong Inspector.
     /// </summary>
     public class MainMenu : MonoBehaviour
     {
-        [SerializeField] private string _title = "KING HUNT";
-        [SerializeField] private string _subtitle = "Hide your Kings. Play your cards. Hunt the enemy King!";
         [SerializeField] private string _gameScene = "GridTest";
+
+        [Header("UI trong scene")]
+        [SerializeField] private RectTransform _title;
+        [SerializeField] private Text _subtitle;
+        [SerializeField] private CanvasGroup _buttons;
+        [SerializeField] private HoverRelay _quitHover;
+        [SerializeField] private SettingsPanel _settings;
+
+        [Header("Hiệu ứng xuất hiện")]
+        [SerializeField] private float _titleDrop = 300f;
+        [SerializeField] private float _titleDropTime = 0.7f;
+        [SerializeField] private float _buttonStagger = 0.12f;
 
         [Header("Nền 3D")]
         [SerializeField] private Camera _camera;
@@ -25,8 +35,6 @@ namespace GridBattle
         [SerializeField] private float _orbitRadius = 6f;
         [SerializeField] private float _orbitHeight = 2.6f;
 
-        private SettingsPanel _settings;
-        private CanvasGroup _buttons;
         private readonly List<CharacterRig> _rigs = new();
         private bool _angry;
 
@@ -35,7 +43,9 @@ namespace GridBattle
             Time.timeScale = 1f;
             if (_camera == null) _camera = Camera.main;
             SpawnShowcase();
-            BuildUi();
+            _settings.Closed += () => UiFactory.Show(_buttons, true);
+            _quitHover.Changed = SetAngry;
+            PlayIntro();
         }
 
         private void SpawnShowcase()
@@ -90,41 +100,21 @@ namespace GridBattle
                 if (rig != null) rig.LookTarget = look;
         }
 
-        private void BuildUi()
+        /// <summary>Tiêu đề rơi xuống nảy, nút bật lên lần lượt, tiêu đề nhún nhẹ mãi.</summary>
+        private void PlayIntro()
         {
-            Canvas canvas = UiFactory.CreateCanvas("MenuCanvas", 10);
-            canvas.transform.SetParent(transform, false);
-            Transform root = canvas.transform;
-
-            Text title = UiFactory.Label("Title", root, _title, 150, TextAnchor.MiddleLeft, UiFactory.Accent);
-            title.rectTransform.Place(new Vector2(0f, 1f), new Vector2(110f, -170f), new Vector2(1000f, 190f));
-            title.GetComponent<Outline>().effectDistance = new Vector2(5f, -5f);
-            title.GetComponent<Shadow>().effectDistance = new Vector2(0f, -10f);
-            Text sub = UiFactory.Label("Subtitle", root, _subtitle, 34, TextAnchor.MiddleLeft);
-            sub.rectTransform.Place(new Vector2(0f, 1f), new Vector2(118f, -365f), new Vector2(1000f, 60f));
-
-            RectTransform list = UiFactory.Rect("Buttons", root).Place(new Vector2(0f, 0.5f), new Vector2(110f, -130f), new Vector2(460f, 420f));
-            UiFactory.Vertical(list, 26f);
-            UiFactory.Button("Play", list, "PLAY", () => SceneFader.Load(_gameScene), 48).Skin("btn_start").Height(130f);
-            UiFactory.Button("Settings", list, "SETTINGS", OpenSettings, 44).Skin("btn_blank_blue", true).Height(110f);
-            Button quit = UiFactory.Button("Quit", list, "QUIT", Quit, 44).Skin("btn_blank_red", true).Height(110f);
-            quit.gameObject.AddComponent<HoverRelay>().Changed = SetAngry;
-            _buttons = UiFactory.Group(list.gameObject, true);
-
-            _settings = new SettingsPanel(root, () => UiFactory.Show(_buttons, true));
-
-            // Hiệu ứng xuất hiện: tiêu đề rơi xuống nảy, nút bật lên lần lượt, tiêu đề nhún nhẹ mãi.
-            RectTransform tr = title.rectTransform;
-            tr.anchoredPosition += new Vector2(0f, 300f);
-            tr.DOAnchorPosY(-170f, 0.7f).SetEase(Ease.OutBounce);
-            tr.DOScale(1.03f, 1.2f).SetDelay(0.8f).SetLoops(-1, LoopType.Yoyo).SetEase(Ease.InOutSine);
-            sub.color = new Color(sub.color.r, sub.color.g, sub.color.b, 0f);
-            sub.DOFade(1f, 0.6f).SetDelay(0.5f);
+            float restY = _title.anchoredPosition.y;
+            _title.anchoredPosition += new Vector2(0f, _titleDrop);
+            _title.DOAnchorPosY(restY, _titleDropTime).SetEase(Ease.OutBounce);
+            _title.DOScale(1.03f, 1.2f).SetDelay(_titleDropTime + 0.1f).SetLoops(-1, LoopType.Yoyo).SetEase(Ease.InOutSine);
+            _subtitle.color = new Color(_subtitle.color.r, _subtitle.color.g, _subtitle.color.b, 0f);
+            _subtitle.DOFade(1f, 0.6f).SetDelay(0.5f);
+            Transform list = _buttons.transform;
             for (int i = 0; i < list.childCount; i++)
             {
                 Transform b = list.GetChild(i);
                 b.localScale = Vector3.zero;
-                b.DOScale(1f, 0.4f).SetDelay(0.6f + i * 0.12f).SetEase(Ease.OutBack);
+                b.DOScale(1f, 0.4f).SetDelay(0.6f + i * _buttonStagger).SetEase(Ease.OutBack);
             }
         }
 
@@ -146,13 +136,15 @@ namespace GridBattle
             if (angry) Sfx.Play(SfxId.Deny, 0.8f, 0.1f);
         }
 
-        private void OpenSettings()
+        public void Play() => SceneFader.Load(_gameScene);
+
+        public void OpenSettings()
         {
             UiFactory.Show(_buttons, false);
             _settings.Open();
         }
 
-        private static void Quit()
+        public void Quit()
         {
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
@@ -160,14 +152,5 @@ namespace GridBattle
             Application.Quit();
 #endif
         }
-    }
-
-    /// <summary>Báo khi con trỏ vào / rời 1 phần tử UI.</summary>
-    public class HoverRelay : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
-    {
-        public Action<bool> Changed;
-        public void OnPointerEnter(PointerEventData e) => Changed?.Invoke(true);
-        public void OnPointerExit(PointerEventData e) => Changed?.Invoke(false);
-        private void OnDisable() => Changed?.Invoke(false);
     }
 }

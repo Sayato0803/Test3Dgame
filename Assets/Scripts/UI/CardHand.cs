@@ -16,12 +16,19 @@ namespace GridBattle
         [SerializeField] private Phases _phases;
         [SerializeField] private GridPlacer _placer;
 
+        [Header("UI trong scene")]
+        [SerializeField] private RectTransform _hand;
+        [SerializeField] private CardView _cardPrefab;
+        [SerializeField] private CanvasGroup _preview;
+        [SerializeField] private Image _previewArt;
+        [SerializeField] private Text _previewDesc;
+        [SerializeField] private float _previewFade = 0.2f;
+
         [Header("Hình lá bài")]
         [SerializeField] private Sprite _kingSprite;
         [SerializeField] private Sprite _knightSprite;
         [SerializeField] private Sprite _mageSprite;
         [SerializeField] private Sprite _scoutSprite;
-        [SerializeField] private Sprite _shineSprite;
 
         [Header("Mô tả chức năng (chuột phải vào thẻ để xem)")]
         [SerializeField, TextArea] private string _kingText = "Hide it on your board.\n10 HP";
@@ -30,23 +37,13 @@ namespace GridBattle
         [SerializeField, TextArea] private string _scoutText = "Once per match:\nreveal enemy Kings in a 2x2 area";
 
         [Header("Bố cục (pixel tham chiếu 1920x1080)")]
-        [SerializeField] private Vector2 _cardSize = new(170f, 255f);
         [SerializeField] private float _spacing = 185f;
         [SerializeField] private float _restY = 120f;
         [SerializeField] private float _arcDrop = 10f;
 
         private static readonly UnitKind[] Order = { UnitKind.King, UnitKind.Knight, UnitKind.Mage, UnitKind.Scout };
 
-        private RectTransform _hand;
         private readonly List<CardView> _cards = new();
-
-        private void Awake()
-        {
-            Canvas canvas = UiFactory.CreateCanvas("CardHandCanvas", 5);
-            canvas.transform.SetParent(transform, false);
-            _hand = UiFactory.Rect("Hand", canvas.transform)
-                .Place(new Vector2(0.5f, 0f), Vector2.zero, new Vector2(1400f, 400f));
-        }
 
         private void OnEnable()
         {
@@ -141,61 +138,26 @@ namespace GridBattle
 
         private CardView CreateCard(UnitKind kind)
         {
-            RectTransform rt = UiFactory.Rect($"Card_{kind}", _hand);
-            rt.Place(new Vector2(0.5f, 0f), Vector2.zero, _cardSize);
-            rt.pivot = new Vector2(0.5f, 0.5f);
-
-            Sprite sprite = kind switch
-            {
-                UnitKind.King => _kingSprite,
-                UnitKind.Knight => _knightSprite,
-                UnitKind.Scout => _scoutSprite,
-                _ => _mageSprite
-            };
-
-            // Hình thẻ vừa là ảnh vừa là mask: góc bo trong suốt cắt luôn vệt sáng quét qua.
-            var art = rt.gameObject.AddComponent<Image>();
-            art.sprite = sprite;
-            art.color = Color.white;
-            rt.gameObject.AddComponent<Mask>().showMaskGraphic = true;
-
-            if (sprite == null)
-            {
-                // Chưa gán hình: lá màu + tên quân.
-                art.color = kind == UnitKind.King ? new Color(0.85f, 0.7f, 0.25f)
-                    : kind == UnitKind.Knight ? new Color(0.75f, 0.3f, 0.3f) : new Color(0.3f, 0.55f, 0.85f);
-                UiFactory.Label("Name", rt, kind.ToString(), 30, TextAnchor.MiddleCenter, null, FontStyle.Bold).rectTransform.Stretch();
-            }
-
-            Image shine = null;
-            if (_shineSprite != null)
-            {
-                shine = UiFactory.Panel("ShineSweep", rt, new Color(1f, 1f, 1f, 0.55f), false);
-                shine.sprite = _shineSprite;
-                shine.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(-280f, 0f), new Vector2(_cardSize.x, _cardSize.y * 1.3f));
-                shine.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 25f);
-            }
-
-            var view = rt.gameObject.AddComponent<CardView>();
-            view.Configure(art, shine, null);
+            CardView view = Instantiate(_cardPrefab, _hand);
+            view.name = $"Card_{kind}";
+            view.SetCardSprite(SpriteOf(kind));
             view.ClickHandler = OnCardClicked;
-            view.RightClickHandler = c => ShowPreview((UnitKind)c.Tag, art.sprite);
+            view.RightClickHandler = c => ShowPreview((UnitKind)c.Tag);
             return view;
         }
 
-        /// <summary>Ảnh thẻ phóng to giữa màn hình + mô tả chức năng bên dưới. Bấm bất kỳ đâu để đóng.</summary>
-        private void ShowPreview(UnitKind kind, Sprite sprite)
+        private Sprite SpriteOf(UnitKind kind) => kind switch
         {
-            Image dim = UiFactory.Panel("CardPreview", _hand.parent, new Color(0f, 0f, 0f, 0.7f));
-            dim.rectTransform.Stretch();
-            var close = dim.gameObject.AddComponent<Button>();
-            close.transition = Selectable.Transition.None;
-            close.onClick.AddListener(() => Destroy(dim.gameObject));
+            UnitKind.King => _kingSprite,
+            UnitKind.Knight => _knightSprite,
+            UnitKind.Scout => _scoutSprite,
+            _ => _mageSprite
+        };
 
-            Image art = UiFactory.Panel("Art", dim.transform, Color.white, false);
-            art.sprite = sprite;
-            art.preserveAspect = true;
-            art.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0f, 130f), new Vector2(_cardSize.x * 2f, _cardSize.y * 2f));
+        /// <summary>Ảnh thẻ phóng to giữa màn hình + mô tả chức năng bên dưới. Bấm bất kỳ đâu để đóng (OnClick -> HidePreview).</summary>
+        private void ShowPreview(UnitKind kind)
+        {
+            _previewArt.sprite = SpriteOf(kind);
             string desc = kind switch
             {
                 UnitKind.King => _kingText,
@@ -203,11 +165,11 @@ namespace GridBattle
                 UnitKind.Scout => _scoutText,
                 _ => _mageText
             };
-            UiFactory.Label("Desc", dim.transform, $"{kind.ToString().ToUpper()}\n{desc}", 34, TextAnchor.UpperCenter, null, FontStyle.Bold)
-                .rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0f, -230f), new Vector2(900f, 200f));
-
+            _previewDesc.text = $"{kind.ToString().ToUpper()}\n{desc}";
             Sfx.Play(SfxId.CardFlip);
-            UiFactory.Show(UiFactory.Group(dim.gameObject, false), true);
+            UiFactory.Show(_preview, true, _previewFade);
         }
+
+        public void HidePreview() => UiFactory.Show(_preview, false, _previewFade);
     }
 }

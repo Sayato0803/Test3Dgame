@@ -4,64 +4,46 @@ using UnityEngine.UI;
 
 namespace GridBattle
 {
-    /// <summary>Hộp thoại Cài đặt dùng chung cho Main Menu và Pause Menu.</summary>
-    public class SettingsPanel
+    /// <summary>Hộp thoại Cài đặt (prefab dùng chung cho Main Menu và Pause Menu). Nút / slider gọi các hàm public qua OnClick trong Inspector.</summary>
+    [RequireComponent(typeof(CanvasGroup))]
+    public class SettingsPanel : MonoBehaviour
     {
-        public CanvasGroup Group { get; }
+        [SerializeField] private Slider _volume;
+        [SerializeField] private Slider _cameraSpeed;
+        [SerializeField] private Button _qualityButton;
+        [SerializeField] private Button _fullscreenButton;
+        [SerializeField] private float _fadeDuration = 0.2f;
 
-        private readonly Action _onClose;
-        private Button _qualityButton;
-        private Button _fullscreenButton;
+        /// <summary>Bảng vừa đóng -> màn hình gọi nó hiện lại.</summary>
+        public event Action Closed;
 
-        public SettingsPanel(Transform parent, Action onClose)
-        {
-            _onClose = onClose;
-
-            Image dim = UiFactory.Panel("SettingsPanel", parent, new Color(0f, 0f, 0f, 0.55f));
-            dim.rectTransform.Stretch();
-            Group = UiFactory.Group(dim.gameObject, false);
-
-            Image win = UiFactory.Window("Window", dim.transform, new Vector2(720f, 640f));
-            RectTransform list = UiFactory.Rect("List", win.transform).Stretch(40f);
-            UiFactory.Vertical(list, 18f);
-
-            UiFactory.Label("Title", list, "SETTINGS", 52, TextAnchor.MiddleCenter, UiFactory.Accent, FontStyle.Bold).Height(80f);
-
-            Row(list, "Volume");
-            UiFactory.Slider("Volume", list, 0f, 1f, GameSettings.Volume, v => GameSettings.Volume = v).Height(36f);
-
-            Row(list, "Camera speed");
-            UiFactory.Slider("CameraSpeed", list, 0.5f, 2f, GameSettings.CameraSpeed, v => GameSettings.CameraSpeed = v).Height(36f);
-
-            _qualityButton = UiFactory.Button("Quality", list, "", CycleQuality, 28).Skin("btn_blank_blue", true).Height(64f);
-            _fullscreenButton = UiFactory.Button("Fullscreen", list, "", ToggleFullscreen, 28).Skin("btn_blank_blue", true).Height(64f);
-            UiFactory.Button("Close", list, "CLOSE", Close, 32).Skin("btn_blank_orange", true).Height(72f);
-            RefreshLabels();
-        }
-
-        private static void Row(Transform parent, string text) =>
-            UiFactory.Label(text, parent, text, 28, TextAnchor.LowerLeft).Height(40f);
+        public bool IsOpen => gameObject.activeSelf;
 
         public void Open()
         {
+            _volume.SetValueWithoutNotify(GameSettings.Volume);
+            _cameraSpeed.SetValueWithoutNotify(GameSettings.CameraSpeed);
             RefreshLabels();
-            UiFactory.Show(Group, true);
+            UiFactory.Show(GetComponent<CanvasGroup>(), true, _fadeDuration);
         }
 
         public void Close()
         {
             GameSettings.Save();
-            UiFactory.Show(Group, false);
-            _onClose?.Invoke();
+            UiFactory.Show(GetComponent<CanvasGroup>(), false, _fadeDuration);
+            Closed?.Invoke();
         }
 
-        private void CycleQuality()
+        public void SetVolume(float v) => GameSettings.Volume = v;
+        public void SetCameraSpeed(float v) => GameSettings.CameraSpeed = v;
+
+        public void CycleQuality()
         {
             GameSettings.Quality = (GameSettings.Quality + 1) % QualitySettings.names.Length;
             RefreshLabels();
         }
 
-        private void ToggleFullscreen()
+        public void ToggleFullscreen()
         {
             GameSettings.Fullscreen = !GameSettings.Fullscreen;
             RefreshLabels();

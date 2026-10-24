@@ -101,16 +101,6 @@ namespace CardScripts
 
         public bool IsConsumed => isConsumed;
 
-        /// <summary>Gán tham chiếu hiển thị khi tạo lá bài bằng code lúc chạy.</summary>
-        public void Configure(Image art, Image shine, ParticleSystem sparkle)
-        {
-            cardArtImage = art;
-            shineImage = shine;
-            sparkleParticle = sparkle;
-            if (shineImage != null) shineImage.gameObject.SetActive(false);
-            if (sparkleParticle != null) sparkleParticle.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-        }
-
         /// <summary>Chia bài: lá bay từ dưới đáy màn hình lên vị trí nghỉ.</summary>
         public void DealIn(float delay)
         {
