@@ -217,6 +217,9 @@ namespace GridBattle
         {
             if (_phases == null || _placer == null || _phases.CurrentPlayer == null) return;
             Camera cam = _placer.ActiveCam;
+            // King giả (Clone) hết hạn bị huỷ: bỏ thanh máu của nó.
+            foreach (GridUnit gone in new List<GridUnit>(_hpBars.Keys))
+                if (gone == null) { Destroy(_hpBars[gone].Bar.gameObject); _hpBars.Remove(gone); }
             foreach (Player p in new[] { _phases.Player1, _phases.Player2 })
             {
                 foreach (GridUnit k in p.Kings)
@@ -319,7 +322,7 @@ namespace GridBattle
         {
             int alive = 0;
             foreach (GridUnit k in p.Kings)
-                if (k != null && k.TryGetComponent(out KingStats s) && !s.IsDead) alive++;
+                if (k != null && k.TryGetComponent(out KingStats s) && !s.IsDead && !s.IsDecoy) alive++;
             return $"{p.DisplayName}  KINGS {alive}/{_phases.KingsPerPlayer}";
         }
 

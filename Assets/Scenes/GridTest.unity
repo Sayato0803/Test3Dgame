@@ -13067,6 +13067,7 @@ MonoBehaviour:
   _knightPreviewColor: {r: 1, g: 0.55, b: 0.15, a: 1}
   _magePreviewColor: {r: 0.7, g: 0.4, b: 1, a: 1}
   _scoutColor: {r: 0.3, g: 0.95, b: 0.9, a: 1}
+  _cardColor: {r: 1, g: 0.85, b: 0.3, a: 1}
 --- !u!4 &653899808
 Transform:
   m_ObjectHideFlags: 0
@@ -14486,12 +14487,22 @@ MonoBehaviour:
   _firstPlayer: {fileID: 521680125}
   _placer: {fileID: 653899807}
   _kingsPerPlayer: 2
-  _knightsPerPlayer: 2
-  _magesPerPlayer: 2
   _attackAnimTime: 0.3
   _hitStagger: 0.25
   _squashStagger: 0.35
   _deathBusy: 2.9
+  _deck:
+  - {fileID: 11400000, guid: 51eb59fc7f42de7478b59b5290071601, type: 2}
+  - {fileID: 11400000, guid: 841693597bdd13046857bf8902ca5d35, type: 2}
+  - {fileID: 11400000, guid: b426712aa4d150c4abcc97b9c8dca13e, type: 2}
+  - {fileID: 11400000, guid: c11e8bb982ba77144949b9ef5e9efe7e, type: 2}
+  - {fileID: 11400000, guid: caca12fdd14b0dd49a871e9be30f29ca, type: 2}
+  - {fileID: 11400000, guid: 8e84a39016f469b4588a707fddf3dcb1, type: 2}
+  - {fileID: 11400000, guid: 3306b4e0ce59daa4fb959215893b0052, type: 2}
+  - {fileID: 11400000, guid: c5415862a91ee804693504542e170c04, type: 2}
+  - {fileID: 11400000, guid: 25daad1b31d7c1e40b95a614ed195c7a, type: 2}
+  _startingHand: 5
+  _attackerCardChance: 0.25
 --- !u!4 &712487983
 Transform:
   m_ObjectHideFlags: 0
@@ -28028,12 +28039,14 @@ MonoBehaviour:
   _mageText: 'Strikes 4 cells
 
     in front of it'
-  _scoutText: 'Once per match:
+  _scoutText: '3 times per match, once per turn:
 
-    reveal enemy Kings in a 2x2 area'
+    reveal enemy Kings in a 2x2
+    area'
   _spacing: 185
   _restY: 150
   _arcDrop: 10
+  _maxHandWidth: 1500
 --- !u!114 &1272204846
 MonoBehaviour:
   m_ObjectHideFlags: 0

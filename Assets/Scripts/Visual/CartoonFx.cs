@@ -326,16 +326,17 @@ namespace GridBattle
             });
         }
 
-        /// <summary>Vòng sao xoay quanh đầu (choáng) trong 'duration' giây.</summary>
-        public static void DizzyStars(Transform head, Vector3 localOffset, float duration)
+        /// <summary>Vòng sao xoay quanh đầu (choáng) trong 'duration' giây. Trả vòng sao (null nếu thiếu asset) để huỷ sớm.</summary>
+        public static DizzyRing DizzyStars(Transform head, Vector3 localOffset, float duration)
         {
             CartoonAssets a = CartoonAssets.Instance;
-            if (a == null || a.StarSprite == null || head == null) return;
+            if (a == null || a.StarSprite == null || head == null) return null;
             var ring = new GameObject("DizzyStars").AddComponent<DizzyRing>();
             ring.Init(head, localOffset, a.StarSprite, duration);
+            return ring;
         }
 
-        private static ParticleSystem Create(string name, Vector3 pos, Material mat)
+        internal static ParticleSystem Create(string name, Vector3 pos, Material mat)
         {
             var go = new GameObject(name);
             go.transform.position = pos;
@@ -351,7 +352,7 @@ namespace GridBattle
             return ps;
         }
 
-        private static void SizeGrowFade(ParticleSystem ps)
+        internal static void SizeGrowFade(ParticleSystem ps)
         {
             var size = ps.sizeOverLifetime;
             size.enabled = true;

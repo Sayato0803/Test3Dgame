@@ -25,6 +25,12 @@ namespace GridBattle
 
         public bool IsDead => Health <= 0;
 
+        /// <summary>Reflect: phản đòn đầu tiên. Shield / Bomb nằm trên GridUnit vì attacker cũng mang được.</summary>
+        public bool Reflect;
+        /// <summary>King giả (Clone): nhận damage như King nhưng không tính vào điều kiện thua.</summary>
+        public bool IsDecoy;
+        public int DecoyTurns;
+
         private Renderer[] _renderers;
 
         private void Awake()

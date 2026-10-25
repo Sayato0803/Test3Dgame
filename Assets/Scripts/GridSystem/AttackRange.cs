@@ -16,15 +16,33 @@ namespace GridBattle
             return new Vector2Int(Mathf.RoundToInt(f.x), Mathf.RoundToInt(f.z));
         }
 
-        /// <summary>'range' ô theo hướng facing, tính cả ô gốc (i = 0). Ô ngoài bàn bỏ qua, xét tiếp.</summary>
-        public static List<Vector2Int> GetCells(GridSystem grid, Vector2Int origin, Transform facing, int range)
+        /// <summary>'range' ô theo hướng facing, tính cả ô gốc. Ô ngoài bàn bỏ qua, xét tiếp. portals: xem Walk.</summary>
+        public static List<Vector2Int> GetCells(GridSystem grid, Vector2Int origin, Transform facing, int range,
+            IReadOnlyDictionary<Vector2Int, Vector2Int> portals = null) =>
+            Walk(origin, FacingStep(facing), range, c => grid.GetCell(c) != null, portals);
+
+        /// <summary>
+        /// Đường đánh thuần (không cần GridSystem, để test). Rift: ô cổng không tốn tầm và không bị đánh, đòn ra ở cổng kia
+        /// (cổng 2 chiều, giữ hướng, đi tiếp phần tầm còn lại). Mỗi cổng chỉ qua 1 lần mỗi đòn để đường đánh không lặp vô hạn.
+        /// </summary>
+        public static List<Vector2Int> Walk(Vector2Int origin, Vector2Int step, int range, System.Func<Vector2Int, bool> inBoard,
+            IReadOnlyDictionary<Vector2Int, Vector2Int> portals = null)
         {
             var cells = new List<Vector2Int>();
-            Vector2Int step = FacingStep(facing);
-            for (int i = 0; i < range; i++)
+            HashSet<Vector2Int> used = null;
+            Vector2Int c = origin;
+            int n = 0;
+            while (n < range)
             {
-                Vector2Int c = origin + step * i;
-                if (grid.GetCell(c) != null) cells.Add(c);
+                if (portals != null && portals.TryGetValue(c, out Vector2Int exit) && (used ??= new HashSet<Vector2Int>()).Add(c))
+                {
+                    used.Add(exit); // ra ở cổng kia thì không bị hút ngược lại
+                    c = exit;
+                    continue;
+                }
+                if (inBoard(c)) cells.Add(c);
+                n++;
+                c += step;
             }
             return cells;
         }

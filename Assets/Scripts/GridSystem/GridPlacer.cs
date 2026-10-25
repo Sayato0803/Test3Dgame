@@ -34,6 +34,7 @@ namespace GridBattle
         [SerializeField] private Color _knightPreviewColor = new(1f, 0.55f, 0.15f);
         [SerializeField] private Color _magePreviewColor = new(0.7f, 0.4f, 1f);
         [SerializeField] private Color _scoutColor = new(0.3f, 0.95f, 0.9f);
+        [SerializeField] private Color _cardColor = new(1f, 0.85f, 0.3f);
 
         private readonly int _overViewCam = 2;
         public int OverviewCameraIndex => _overViewCam;
@@ -43,13 +44,17 @@ namespace GridBattle
         private GridUnit _dragging;
         private bool _draggingNew;
         private bool _scouting;
+        private CardData _card;
+        private readonly List<Vector2Int> _picks = new();
         private float _spawnTime;
         private GridSystem _hoverGrid;
         private readonly List<Vector2Int> _hoverCoords = new();
 
-        /// <summary>Đang cầm quân hoặc đang chọn vùng Trinh sát: khoá Submit / pause bằng Esc.</summary>
-        public bool IsDragging => _dragging != null || _scouting;
+        /// <summary>Đang cầm quân, chọn vùng Trinh sát hoặc chọn mục tiêu lá phép: khoá Submit / pause bằng Esc.</summary>
+        public bool IsDragging => _dragging != null || _scouting || _card != null;
         public bool IsScouting => _scouting;
+        /// <summary>Lá phép đang chọn mục tiêu (CardHand không chia lại lá đó).</summary>
+        public CardData TargetingCard => _card;
         /// <summary>Đang kéo 1 quân mới từ thẻ bài (chưa đặt) - CardHand dùng để không chia lại lá đó.</summary>
         public UnitKind? DraggingNewKind => _dragging != null && _draggingNew ? _dragging.Kind : null;
         /// <summary>Camera đang bay: tạm khoá thao tác.</summary>
@@ -164,6 +169,26 @@ namespace GridBattle
                         _phases.Scout(grid, coord);
                     }
                 }
+                return;
+            }
+
+            if (_card != null)
+            {
+                if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1)) { EndCard(); return; }
+                GridSystem board = _phases.CardBoard(_card); // null = lá chọn được trên cả 2 bàn (chỉ lá 1 lần chọn)
+                if (board != null) foreach (Vector2Int p in _picks) SetHover(board, p, _cardColor); // ô đã chọn (cổng A, King gốc)
+                if (!overCell || (board != null && grid != board)) return;
+                Vector2Int? first = _picks.Count > 0 ? _picks[0] : null;
+                bool ok = _phases.CanTarget(_card, grid, coord, first);
+                foreach (Vector2Int c in Phases.CardArea(_card, grid, coord)) SetHover(grid, c, ok ? Pulse(_cardColor) : _invalidColor);
+                if (!ok || !Input.GetMouseButtonDown(0)) return;
+                _picks.Add(coord);
+                if (_picks.Count < _card.PickCount) return;
+                CardData card = _card;
+                var picks = new List<Vector2Int>(_picks);
+                _card = null; // trước PlayCard: CardHand refresh thấy lá đã rời tay, không chia lại
+                _phases.PlayCard(card, grid, picks);
+                EndCard();
                 return;
             }
 
@@ -303,6 +328,32 @@ namespace GridBattle
             OnDragEnded?.Invoke(null, false);
         }
 
+        // ---------------- Lá phép ----------------
+
+        /// <summary>
+        /// Bấm lá phép: lá không cần mục tiêu (Chest) dùng ngay; lá khác vào chế độ chọn ô (chuột phải / Esc để huỷ).
+        /// Lá chọn trên bàn mình thì camera bay về bàn nhà, xong bay lại bàn đối thủ.
+        /// </summary>
+        public bool BeginCard(CardData card)
+        {
+            if (_dragging != null || _scouting || _card != null || IsCameraMoving || _phases == null || !_phases.CanPlayCard(card)) return false;
+            if (card.PickCount == 0) return _phases.PlayCard(card, null, _picks);
+            _card = card;
+            _picks.Clear();
+            if (_phases.CardBoard(card) == _phases.CurrentPlayer.Board) SwitchCamera(_phases.CurrentPlayer.CameraIndex);
+            OnDragStarted?.Invoke(null);
+            return true;
+        }
+
+        private void EndCard()
+        {
+            _card = null;
+            _picks.Clear();
+            ClearHover();
+            if (_phases.Current == GamePhase.Attack) SwitchCamera(_phases.CurrentPlayer.AttackCameraIndex);
+            OnDragEnded?.Invoke(null, false);
+        }
+
         // ---------------- Raycast ----------------
 
         private bool TryGetHoveredCell(out GridSystem grid, out Vector2Int coord)
@@ -355,7 +406,8 @@ namespace GridBattle
         private void ShowAttackPreview(GridSystem grid, Vector2Int origin)
         {
             Color col = Pulse(_dragging.Kind == UnitKind.Mage ? _magePreviewColor : _knightPreviewColor);
-            foreach (Vector2Int c in AttackRange.GetCells(grid, origin, _dragging.transform, _dragging.Range))
+            var portals = _phases != null ? _phases.PortalsOn(grid) : null;
+            foreach (Vector2Int c in AttackRange.GetCells(grid, origin, _dragging.transform, _dragging.Range, portals))
                 SetHover(grid, c, col);
         }
 
@@ -372,6 +424,9 @@ namespace GridBattle
             m.y = Screen.height - m.y;
             return _phases != null && _phases.IsOverUi(m);
         }
+
+        /// <summary>Tạo quân (model + GridUnit + hiệu ứng) chưa đặt lên bàn. Phases dùng cho King giả của lá Clone.</summary>
+        public GridUnit SpawnUnit(UnitKind kind, Vector3 position) => SpawnUnit(kind, ModelOf(kind), position);
 
         private GridUnit SpawnUnit(UnitKind kind, GameObject model, Vector3 position)
         {

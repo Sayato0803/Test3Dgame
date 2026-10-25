@@ -25,13 +25,10 @@ namespace GridBattle
 
         public List<GridUnit> Kings { get; } = new();
         public List<GridUnit> Attackers { get; } = new();
-
-        public int CountAttackers(UnitKind kind)
-        {
-            int n = 0;
-            foreach (GridUnit a in Attackers)
-                if (a.Kind == kind) n++;
-            return n;
-        }
+        /// <summary>Lá phép trên tay (Phases rút / dùng).</summary>
+        public List<CardData> Hand { get; } = new();
+        /// <summary>Số lá Knight / Mage trên tay (rút từ bộ bài; mỗi lá đặt được 1 quân).</summary>
+        public int KnightCards { get; set; }
+        public int MageCards { get; set; }
     }
 }

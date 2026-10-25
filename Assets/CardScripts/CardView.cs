@@ -84,6 +84,29 @@ namespace CardScripts
             }
         }
 
+        /// <summary>Lá chưa có art: nền màu 'tint' + tên lá in giữa thẻ.</summary>
+        public void SetPlaceholder(string title, Color tint)
+        {
+            if (cardArtImage == null) return;
+            cardArtImage.sprite = null;
+            cardArtImage.color = tint;
+            var label = new GameObject("Label", typeof(RectTransform)).AddComponent<Text>();
+            label.transform.SetParent(cardArtImage.transform, false);
+            label.rectTransform.anchorMin = Vector2.zero;
+            label.rectTransform.anchorMax = Vector2.one;
+            label.rectTransform.offsetMin = new Vector2(10f, 10f);
+            label.rectTransform.offsetMax = new Vector2(-10f, -10f);
+            label.font = Resources.Load<Font>("GUI/fonts/LilitaOne-Regular");
+            label.text = title.ToUpper();
+            label.alignment = TextAnchor.UpperLeft; // góc trên trái: phần còn thấy khi các lá trên tay xếp chồng
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 10;
+            label.resizeTextMaxSize = 26;
+            label.color = Color.white;
+            label.raycastTarget = false;
+            label.gameObject.AddComponent<Outline>().effectDistance = new Vector2(2f, -2f);
+        }
+
         public void SetSpawnPrefab(GameObject prefab)
         {
             spawnPrefab = prefab;
