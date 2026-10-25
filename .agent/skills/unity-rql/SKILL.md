@@ -5,7 +5,8 @@ description: |-
   language, operators, sources (scene objects, assets, scenes, prefabs, console logs, Editor state), Editor operations
   (create, add components, scenes, prefabs, assets, selection, Play Mode) and what installed extensions add.
 metadata:
-  generated-by: mcp-plugin-dotnet
+  generated-by: unity-mcp
+  ai-game-dev: exclude
 ---
 # RQL — query and change the Unity Editor
 
@@ -75,9 +76,11 @@ Scenes, prefabs, assets, Editor state:
 | Source | What |
 |---|---|
 | `animation` | animation: animators (every Animator in the loaded scenes), CreateClip(path, frameRate, loop), CreateController(path, motion) |
+| `cinemachine` | Cinemachine: cameras, brains, noiseProfiles, bodyTypes / aimTypes / extensionTypes; CreateCamera(name, follow, lookAt, position, eulerAngles, priority), EnsureBrain(camera) |
 | `componentTypes` | component types that can be added (name fullName namespace) |
 | `console` | captured Editor log entries, oldest first (last 1000): logType message timestamp stackTrace sequence |
 | `editor` | Editor state (isPlaying, isPaused, selection …) and operations: CreateGameObject, OpenScene, NewScene, SaveScenes, InstantiatePrefab, OpenPrefab / SavePrefab / ClosePrefab, CopyAsset / MoveAsset / DeleteAsset / CreateFolder, CreateMaterial, SaveAssets, RefreshAssets, ClearConsole, ExecuteMenuItem (rql-schema "editor" for signatures) |
+| `input` | Input System: assets (.inputactions), layouts, interactions, processors; CreateAsset(path, map?) |
 | `lighting` | the active scene's lighting: environment (ambient, fog, skybox, sun), Lighting Settings asset, bake (rql-schema "lighting" for members and calls) |
 | `objects` | every GameObject in the loaded scenes, depth-first, inactive ones included |
 | `prefab` | root GameObject of the prefab open in prefab editing mode (none otherwise) |
@@ -173,6 +176,105 @@ have no exit time and no blend duration; set them on the transition. Only the An
 playback state is not meaningful in Edit Mode); in Play Mode `call SetParameter("Speed", 2)` / `call Play("Walk")` drive it.
 Other components' AnimationCurve fields take keyframe lists too: `set curve = [[0, 0], [1, 1]]`.
 
+## Cinemachine
+
+Cinemachine 3: a `CinemachineCamera` (virtual camera) on its own GameObject; the `CinemachineBrain` on the Unity Camera
+shows the live one (highest `Priority.Value`) and blends between them. A camera's pipeline is a Body component
+(position: Follow, OrbitalFollow, ThirdPersonFollow, PositionComposer …), an Aim component (rotation: RotationComposer,
+HardLookAt, PanTilt …), an optional noise component and extensions, all on the camera's GameObject. Follow / LookAt
+targets take a GameObject name or ref. Writes and calls are undoable.
+
+```
+editor | call CreateGameObject("Player", null, "Capsule")   (a target for the examples)
+cinemachine | call CreateCamera("FollowCam", "Player", null, "(0, 3, -6)", "(20, 0, 0)", 10)   name, follow?, lookAt?, position?, eulerAngles?, priority? (adds a CinemachineBrain to the main Camera)
+cinemachine | call CreateCamera("Overview")
+cinemachine | get cameras | select name Priority.Value IsLive Follow.name LookAt.name body.$type aim.$type noise.$type
+cinemachine | get cameras | where name == "FollowCam" | call SetBody("Follow")   Body by name; cinemachine | get bodyTypes lists them ("None" removes)
+cinemachine | get cameras | where name == "FollowCam" | call SetAim("RotationComposer")   Aim by name; cinemachine | get aimTypes
+cinemachine | get cameras | where name == "FollowCam" | set body.FollowOffset = "(0, 2, -8)", body.TrackerSettings.PositionDamping = "(1, 1, 1)"
+cinemachine | get cameras | where name == "FollowCam" | set aim.Composition.ScreenPosition = "(0.1, 0)", aim.Damping = "(0.5, 0.5)"
+cinemachine | get cameras | where name == "FollowCam" | set Lens.FieldOfView = 50, Lens.NearClipPlane = 0.3, Lens.Dutch = 5
+cinemachine | get cameras | where name == "Overview" | set Lens.ModeOverride = "Orthographic", Lens.OrthographicSize = 12
+cinemachine | get cameras | where name == "FollowCam" | set Priority.Value = 20
+cinemachine | get cameras | where name == "Overview" | call SetTargets("Player")   follow (and look at) Player; SetTargets(follow, lookAt) for both, null clears
+cinemachine | get cameras | where name == "Overview" | set LookAt = null
+cinemachine | get cameras | where name == "FollowCam" | call SetNoise("Handheld_normal_mild", 1.5, 1)   profile, amplitudeGain?, frequencyGain?; cinemachine | get noiseProfiles | select name
+cinemachine | get cameras | where name == "FollowCam" | set noise.AmplitudeGain = 0.5
+cinemachine | get cameras | where name == "FollowCam" | call SetBody("OrbitalFollow")   replace the Body
+cinemachine | get cameras | where name == "FollowCam" | set body.Radius = 6, body.OrbitStyle = "Sphere"
+objects | where name == "FollowCam" | call AddComponent("CinemachineDeoccluder")   extensions are components (cinemachine | get extensionTypes)
+cinemachine | get cameras | select name extensions.$type
+cinemachine | call EnsureBrain()   brain on the main Camera (EnsureBrain("Camera name") for another)
+cinemachine | get brains | set DefaultBlend.Style = "EaseInOut", DefaultBlend.Time = 1.5
+cinemachine | get brains | select gameObject.name DefaultBlend.Style DefaultBlend.Time UpdateMethod activeCamera
+cinemachine | get cameras | where name == "Overview" | call SetNoise("None")
+cinemachine | get cameras | where name == "Overview" | call Destroy()   remove the CinemachineCamera component (objects | … | call Destroy() removes the GameObject)
+```
+
+`body` / `aim` / `noise` are the pipeline components themselves, so their members are written directly
+(`rql-schema "CinemachineFollow"` lists them). LensSettings is a struct written in place (`set Lens.FieldOfView = …`);
+`Lens.ModeOverride` (None, Orthographic, Perspective, Physical) overrides the Unity Camera's projection. Blend styles:
+Cut, EaseInOut, EaseIn, EaseOut, HardIn, HardOut, Linear, Custom. Brains update the live camera in Play Mode; `IsLive`
+reports it.
+
+## Input System
+
+An InputActionAsset (`.inputactions` file) has `maps` → `actions` → `bindings` and `controlSchemes`; `actions` also lists
+every action of every map. Every `set` and `call` is validated (control paths need a known device layout, interactions /
+processors / composites must be registered, groups must be control schemes of the asset), written to the `.inputactions`
+file and re-imported at once, and is undoable. Paths look like `"<Keyboard>/space"`, `"<Gamepad>/leftStick"`,
+`"<Mouse>/leftButton"`; groups are scheme names joined by `;` (`"Keyboard&Mouse;Gamepad"`).
+
+```
+input | call CreateAsset("Assets/Input/Player.inputactions", "Player")   path, map? (first action map); missing folders are created
+input | get assets | select $ref name path
+unity.asset("Assets/Input/Player.inputactions") | call AddControlScheme("Keyboard&Mouse", ["<Keyboard>", "<Mouse>"])   name, requiredDevices?, optionalDevices?, bindingGroup? (default: name)
+unity.asset("Assets/Input/Player.inputactions") | call AddControlScheme("Gamepad", ["<Gamepad>"])
+unity.asset("Assets/Input/Player.inputactions") | call AddMap("UI")
+unity.asset("Assets/Input/Player.inputactions") | get maps | where name == "Player" | call AddAction("Jump")   name, type? (Button, Value, PassThrough), expectedControlType?, binding?
+unity.asset("Assets/Input/Player.inputactions") | get maps | where name == "Player" | call AddAction("Move", "Value", "Vector2")
+unity.asset("Assets/Input/Player.inputactions") | get actions | where name == "Jump" | call AddBinding("<Keyboard>/space", "Keyboard&Mouse")   path, groups?, interactions?, processors?
+unity.asset("Assets/Input/Player.inputactions") | get actions | where name == "Jump" | call AddBinding("<Gamepad>/buttonSouth", "Gamepad", "hold(duration=0.4)")
+unity.asset("Assets/Input/Player.inputactions") | get actions | where name == "Move" | call AddComposite("2DVector", {up: "<Keyboard>/w", down: "<Keyboard>/s", left: "<Keyboard>/a", right: "<Keyboard>/d"}, "Keyboard&Mouse")   composite, {part: path}, groups?, interactions?, processors?
+unity.asset("Assets/Input/Player.inputactions") | get actions | where name == "Move" | call AddBinding("<Gamepad>/leftStick", "Gamepad", null, "stickDeadzone")
+unity.asset("Assets/Input/Player.inputactions") | get maps | select name actionCount
+unity.asset("Assets/Input/Player.inputactions") | get actions | select map name type expectedControlType interactions bindingCount
+unity.asset("Assets/Input/Player.inputactions") | get actions | get bindings | select action index path name groups interactions processors isComposite isPartOfComposite
+unity.asset("Assets/Input/Player.inputactions") | get controlSchemes | select name bindingGroup requiredDevices optionalDevices
+unity.asset("Assets/Input/Player.inputactions") | get actions | get bindings | where path == "<Gamepad>/buttonSouth" | set path = "<Gamepad>/buttonEast", interactions = "tap"
+unity.asset("Assets/Input/Player.inputactions") | get actions | get bindings | where isPartOfComposite and name == "up" | set path = "<Keyboard>/upArrow"
+unity.asset("Assets/Input/Player.inputactions") | get actions | where name == "Jump" | set name = "Leap", type = "PassThrough", interactions = "press"
+unity.asset("Assets/Input/Player.inputactions") | get actions | where name == "Move" | set processors = "invertVector2", initialStateCheck = true
+unity.asset("Assets/Input/Player.inputactions") | get controlSchemes | where name == "Keyboard&Mouse" | set requiredDevices = ["<Keyboard>"], optionalDevices = ["<Mouse>"]
+unity.asset("Assets/Input/Player.inputactions") | get controlSchemes | where name == "Gamepad" | set name = "Controller"   also renames the group of its bindings
+unity.asset("Assets/Input/Player.inputactions") | get maps | where name == "Player" | set name = "Gameplay"
+unity.asset("Assets/Input/Player.inputactions") | get actions | get bindings | where groups == "Controller" | call Remove()   a composite root removes its parts
+unity.asset("Assets/Input/Player.inputactions") | get actions | where name == "Leap" | call Remove()
+unity.asset("Assets/Input/Player.inputactions") | get controlSchemes | where name == "Controller" | call Remove()
+unity.asset("Assets/Input/Player.inputactions") | get maps | where name == "UI" | call Remove()
+input | select interactions processors   registered names; input | get layouts lists device and control layouts
+```
+
+Assets referenced by a scene component work the same way: `objects | get components | where $ is PlayerInput | get actions | get maps`.
+Bindings are addressed by id, so removing some bindings in one query does not shift the others. `call` needs rql-mutate.
+Created assets are not removed by Undo; undoing an edit rewrites the file.
+
+## Particle systems
+
+Particle systems are components: `objects | get components | where $ is ParticleSystem`. Module structs (`main`,
+`emission`, `shape` …) are written through, even though they are get-only properties:
+
+```
+objects | get components | where $ is ParticleSystem | set main.startLifetime = 3, main.loop = false
+objects | get components | where $ is ParticleSystem | set emission.rateOverTime = [5, 25]          random between two
+objects | get components | where $ is ParticleSystem | set main.startColor = "#ff8800"
+objects | get components | where $ is ParticleSystem | set main.startColor = [["#ff0000", 0], ["#0000ff", 1]]   gradient
+```
+
+`MinMaxCurve` takes a number or `[min, max]`; `MinMaxGradient` a color, `[color, color]` or gradient keys.
+Playback in the Editor: `objects | get components | where $ is ParticleSystem | call Play()` (also Pause, Stop, Clear,
+Simulate(seconds)).
+
 ## ProBuilder
 
 ProBuilder meshes are components: `probuilder | get meshes` (= `objects | get components | where $ is ProBuilderMesh`). A mesh
@@ -232,6 +334,14 @@ edges of the mesh, amounts outside the range and deleting every face fail withou
 - `com.IvanMurzak.Unity.MCP.Editor.Rql.ToolTypesModule`
 - `com.IvanMurzak.Unity.MCP.Editor.Rql.Mathematics.MathematicsModule`
 - `com.IvanMurzak.Unity.MCP.Editor.Rql.Animation.AnimationModule`
+- `com.IvanMurzak.Unity.MCP.Editor.Rql.Cinemachine.CinemachineModule`
+- `com.IvanMurzak.Unity.MCP.Editor.Rql.InputSystem.InputSystemModule`
 - `com.IvanMurzak.Unity.MCP.Editor.Rql.Lighting.LightingModule`
+- `com.IvanMurzak.Unity.MCP.Editor.Rql.Particles.ParticleSystemModule`
 - `com.IvanMurzak.Unity.MCP.Editor.Rql.Physics3D.PhysicsModule`
 - `com.IvanMurzak.Unity.MCP.Editor.Rql.ProBuilder.ProBuilderModule`
+
+
+> CLI installation and usage: see the `unity-cli` skill.
+> If this task needs unavailable asset-generation or Blender tools, consult `ai-game-dev-app` for an optional integrated workflow.
+
