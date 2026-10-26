@@ -24,6 +24,10 @@ namespace GridBattle
         [SerializeField] private Image _previewArt;
         [SerializeField] private Text _previewDesc;
         [SerializeField] private float _previewFade = 0.2f;
+        [Tooltip("Số lá đang cầm / tối đa (vd 3/8). Đỏ khi tay đầy.")]
+        [SerializeField] private Text _countLabel;
+        [Tooltip("Nút Draw đầu lượt (OnClick -> Phases.DrawCard); chỉ hiện khi Phases.MustDraw.")]
+        [SerializeField] private Button _drawButton;
 
         [Header("Hình lá bài")]
         [SerializeField] private Sprite _kingSprite;
@@ -38,9 +42,13 @@ namespace GridBattle
         [SerializeField, TextArea] private string _scoutText = "Once per match:\nreveal enemy Kings in a 2x2 area";
 
         [Header("Bố cục (pixel tham chiếu 1920x1080)")]
-        [SerializeField] private float _spacing = 185f;
+        [Tooltip("Khoảng cách tâm 2 lá; nhỏ hơn bề rộng lá (170) để lá đè nhau một chút.")]
+        [SerializeField] private float _spacing = 150f;
         [SerializeField] private float _restY = 120f;
-        [SerializeField] private float _arcDrop = 10f;
+        [Tooltip("Lá ngoài cùng thấp hơn lá giữa bao nhiêu pixel khi tay xoè hết cỡ.")]
+        [SerializeField] private float _arcHeight = 20f;
+        [Tooltip("Góc nghiêng (độ) của lá ngoài cùng khi tay xoè hết cỡ.")]
+        [SerializeField] private float _fanAngle = 4f;
         [Tooltip("Khoảng cách tối đa giữa lá đầu và lá cuối; nhiều lá thì khít lại.")]
         [SerializeField] private float _maxHandWidth = 1500f;
 
@@ -50,7 +58,11 @@ namespace GridBattle
 
         private void OnEnable()
         {
-            if (_phases != null) _phases.StateChanged += Refresh;
+            if (_phases != null)
+            {
+                _phases.StateChanged += Refresh;
+                _phases.CardsDrawn += OnCardsDrawn;
+            }
             if (_placer != null)
             {
                 _placer.OnDragStarted += OnDrag;
@@ -60,7 +72,11 @@ namespace GridBattle
 
         private void OnDisable()
         {
-            if (_phases != null) _phases.StateChanged -= Refresh;
+            if (_phases != null)
+            {
+                _phases.StateChanged -= Refresh;
+                _phases.CardsDrawn -= OnCardsDrawn;
+            }
             if (_placer != null)
             {
                 _placer.OnDragStarted -= OnDrag;
@@ -69,6 +85,21 @@ namespace GridBattle
         }
 
         private void Start() => Refresh();
+
+        /// <summary>Nút Sort: gom lá phép cùng loại đứng cạnh nhau (lá quân vốn đã xếp theo Order). Lá cũ trượt sang chỗ mới.</summary>
+        public void SortHand()
+        {
+            if (_phases == null || _phases.CurrentPlayer == null) return;
+            // Thứ tự Hand không ảnh hưởng luật (chỉ Add/Remove/Contains). OrderBy ổn định: lá cùng loại giữ thứ tự bốc.
+            var sorted = new List<CardData>(System.Linq.Enumerable.OrderBy(_phases.CurrentPlayer.Hand, c => c.Type));
+            _phases.CurrentPlayer.Hand.Clear();
+            _phases.CurrentPlayer.Hand.AddRange(sorted);
+            Refresh();
+        }
+
+        // Lá vừa rút: lần Refresh tới chạy hoạt ảnh bốc cho chúng; lá khác (đổi người, huỷ kéo, mở đầu) hiện thẳng ở tay.
+        private readonly List<object> _justDrawn = new();
+        private void OnCardsDrawn(IReadOnlyList<object> tags) => _justDrawn.AddRange(tags);
 
         private void OnDrag(GridUnit _) => Refresh();
         private void OnDragEnd(GridUnit _, bool __) => Refresh();
@@ -116,23 +147,45 @@ namespace GridBattle
             }
             foreach (CardView c in pool) c.Discard();
 
-            // Xếp hình quạt: lá giữa cao nhất. Lá mới chia bay từ đáy lên, lá cũ trượt sang chỗ mới. Nhiều lá thì khít lại cho vừa màn hình.
+            if (_drawButton != null)
+                _drawButton.gameObject.SetActive(_phases != null && _phases.MustDraw && !_phases.IsHandingOver);
+
+            if (_countLabel != null)
+            {
+                // Deploy chỉ có lá King (không tính giới hạn) -> ẩn bộ đếm.
+                Player p = _phases != null && !_phases.IsHandingOver && _phases.Current != GamePhase.Deploy ? _phases.CurrentPlayer : null;
+                _countLabel.gameObject.SetActive(p != null);
+                if (p != null)
+                {
+                    int count = _phases.HandCount(p);
+                    _countLabel.text = $"{count}/{Player.MaxHand}";
+                    _countLabel.color = count >= Player.MaxHand ? new Color(1f, 0.35f, 0.3f) : Color.white;
+                }
+            }
+
+            // Xếp quạt kiểu Balatro: lá giữa cao nhất, lá hai bên thấp dần và nghiêng ra ngoài. Lá mới chia bay từ đáy lên, lá cũ trượt sang chỗ mới.
+            // Cung và góc tính theo độ rộng tay (đã giới hạn bởi _maxHandWidth), không theo số lá -> nhiều lá chỉ khít lại, không tụt khỏi màn hình.
             int n = _cards.Count, dealt = 0;
             float spacing = n > 1 ? Mathf.Min(_spacing, _maxHandWidth / (n - 1)) : _spacing;
+            float half = (n - 1) * 0.5f;
+            float spread = half * spacing / (_maxHandWidth * 0.5f); // 0 = 1 lá, 1 = tay xoè hết cỡ
             for (int i = 0; i < n; i++)
             {
-                float offset = i - (n - 1) * 0.5f;
-                float arc = offset * spacing / _spacing; // lá khít lại thì cung cũng thoải theo
-                var pos = new Vector2(offset * spacing, _restY - arc * arc * _arcDrop);
+                float offset = i - half;
+                float t = half > 0f ? offset / half : 0f; // -1 (trái) .. 1 (phải)
+                var pos = new Vector2(offset * spacing, _restY - t * t * _arcHeight * spread);
+                float angle = -t * _fanAngle * spread;
                 CardView c = _cards[i];
                 c.transform.SetSiblingIndex(i);
                 if (fresh.Contains(c))
                 {
-                    c.SetRestPosition(pos);
-                    c.DealIn(0.08f * dealt++);
+                    c.SetRestPosition(pos, angle);
+                    if (_justDrawn.Remove(c.Tag)) c.DealIn(0.6f * dealt++); // nhiều lá (Chest) thì lần lượt từng lá lên giữa màn hình
+                    else c.ShowInstant();
                 }
-                else c.MoveRestPosition(pos, 0.25f);
+                else c.MoveRestPosition(pos, angle, 0.25f);
             }
+            _justDrawn.Clear();
         }
 
         private bool OnCardClicked(CardView card)

@@ -237,6 +237,7 @@ MonoBehaviour:
   shineImage: {fileID: 6055758568815102661}
   sparkleParticle: {fileID: 0}
   drawAnimator: {fileID: 2360426827929889118}
+  burstSprite: {fileID: 21300000, guid: e992a9b7d139dc64495fae062fc831a1, type: 3}
   spawnPrefab: {fileID: 0}
 --- !u!95 &2360426827929889118
 Animator:

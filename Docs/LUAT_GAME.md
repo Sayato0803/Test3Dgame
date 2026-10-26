@@ -66,16 +66,21 @@ Các lá có hiệu lực tức thì (Chest, Healing, Clone) chạy ngay lúc d�
 
 ## 5. Thẻ Scout (thẻ quân, không phải lá phép)
 
-- Mỗi người **3 lần / trận**, tối đa **1 lần / lượt**, dùng ở phase Attack.
+- Mỗi người **1 lần / trận** ⚙️, dùng ở phase Attack.
+- Lá Scout nằm trên tay (trừ Deploy) tới khi dùng, và chiếm 1 chỗ trong giới hạn 8 lá. Ngoài phase Attack thì bấm vào lá chỉ bị rung (không dùng được).
 - Chọn vùng 2x2 trên **bàn đối thủ**: lộ mọi King còn sống trong vùng tới hết lượt.
 - Làm lộ King đang có Suicide Bomb → bom nổ.
 
 ## 6. Rút bài
 
 - Deploy: tay bài chỉ có 2 lá King.
-- **Lượt Attack đầu tiên** của mỗi người: rút **5 lá** ⚙️. Các lượt Attack sau: rút **1 lá**.
+- Đầu mỗi lượt (Setup; lượt đầu của người đi trước là Attack ngay sau Deploy) phải bấm nút **DRAW** trước, chưa bấm thì không đặt / dời quân, dùng bài hay Confirm được.
+- Mỗi lượt Draw **1 lá, 1 lần** (kể cả lượt đầu). Tay mở đầu: mỗi người có sẵn **1 Knight + 1 Mage** (+ lá Scout).
+- Chỉ lá vừa rút (Draw / Chest) mới chạy hoạt ảnh bay vào tay; lá đã có sẵn hiện thẳng (kể cả sau màn che đổi người).
+- Tay bài hiện ở mọi phase của người đang tới lượt; bấm lá không dùng được lúc đó thì lá rung + nháy đỏ, không đánh được.
 - Mỗi lá rút ra có **25%** ⚙️ là lá quân (Knight hoặc Mage, 50/50), còn lại là 1 lá phép ngẫu nhiên trong danh sách `_deck` của `GameFlow` ⚙️.
-- Bộ bài **vô hạn**. **Chưa** giới hạn số lá mỗi loại, **chưa** có cost, **chưa** giới hạn tay bài. Lá quân chưa dùng thì giữ trên tay qua các lượt.
+- Bộ bài **vô hạn**. **Chưa** giới hạn số lá mỗi loại, **chưa** có cost. Lá quân chưa dùng thì giữ trên tay qua các lượt.
+- Tay bài tối đa **8 lá** ⚙️ (lá phép + Knight + Mage + Scout = đúng số lá đang hiện trên tay; không tính King lúc Deploy). Tay đầy thì lượt rút không rút thêm, phần dư bị bỏ; đang 8/8 thì **không dùng được Chest**. Góc dưới trái hiện số lá đang cầm, vd `3/8`.
 
 ## 7. Lá phép
 
@@ -98,7 +103,7 @@ Các lá có hiệu lực tức thì (Chest, Healing, Clone) chạy ngay lúc d�
 | **Tornado** | Vùng 2x2 trên bàn mình | **Bẫy**, đối thủ không thấy. Nổ khi đối thủ CONFIRM battle kế tiếp, **trước** mọi đòn: mọi quân trong vùng (kể cả King của mình, King giả, attacker đối thủ) bị thổi bay sang ô **trống hoàn toàn** ngẫu nhiên **ngoài vùng**; attacker đang ở viền bàn thì bị loại; King ẩn lại; attacker giữ hướng và vẫn đánh từ ô mới | 1 lần, ở battle kế tiếp của đối thủ |
 | **Healing** | 1 quân của mình **cần hồi** | **King** (chưa đầy máu): +2 HP, không vượt 10. **Attacker** (đang choáng): hết choáng | Tức thì |
 | **Suicide Bomb** | 1 quân của mình | **Trên King:** nổ khi King **bị lộ** (do battle hoặc Scout); attacker đối phương trong vùng bị thổi bay (ở viền thì bị loại) và **choáng 2 turn**. **Trên attacker:** nổ khi attacker đó **bị choáng**; King đối phương trong vùng mất **1 máu** (cộng vào damage battle) rồi bị thổi bay. Quân giữ bom không mất máu. Vùng nổ: **turn 1–2: 3x3, turn 3–4: 5x5, từ turn 5: 7x7**, tâm là ô quân giữ bom. Nổ dây chuyền được, mỗi bom nổ 1 lần | 3 turn |
-| **Clone** | 1 King của mình, rồi 1 ô không có King | Tạo King giả: HP = HP hiện tại của King gốc, nhận damage / lộ / chết y như King; đối thủ không phân biệt được. **Không** tính vào điều kiện thua, không tính vào bảng KINGS | Tới khi hết HP hoặc sau 3 turn |
+| **Clone** | 1 King của mình, rồi 1 ô không có King | Tạo King giả: HP = HP hiện tại của King gốc, nhận damage / lộ / chết y như King; đối thủ không phân biệt được. **Không** tính vào điều kiện thua, không tính vào bảng KINGS. Bị tấn công **lần thứ 2** (mỗi attacker đánh trúng tính 1 lần, kể cả đòn bị Shield/Reflect chặn): King giả **nổ tung** thay vì nhận damage, attacker vừa đánh nó bị **văng khỏi bàn, loại khỏi trận** (Shield không chặn) | Tới khi hết HP, nổ, hoặc sau 3 turn |
 | ~~Brawler~~ | | Chưa làm | |
 
 **Phối hợp:** Reflect + Shield trên cùng 1 King kích hoạt **cùng lúc** vào cùng đòn đầu tiên và **cùng bị tiêu hao**.

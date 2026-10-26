@@ -30,5 +30,8 @@ namespace GridBattle
         /// <summary>Số lá Knight / Mage trên tay (rút từ bộ bài; mỗi lá đặt được 1 quân).</summary>
         public int KnightCards { get; set; }
         public int MageCards { get; set; }
+
+        /// <summary>Tối đa số lá trên tay (đếm bằng Phases.HandCount: lá phép + Knight + Mage + Scout; không tính King lúc Deploy).</summary>
+        public const int MaxHand = 8;
     }
 }

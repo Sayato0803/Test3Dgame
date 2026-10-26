@@ -23,5 +23,5 @@ MonoBehaviour:
 
     Lasts until the next battle
     against it.'
-  Art: {fileID: 0}
+  Art: {fileID: 21300000, guid: 94052801fc80fb942a30ded646bdf5c7, type: 3}
   Tint: {r: 0.25, g: 0.55, b: 0.9, a: 1}

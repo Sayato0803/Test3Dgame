@@ -15,8 +15,6 @@ namespace GridBattle
         [Header("Lá phép")]
         [Tooltip("Các loại lá phép có thể rút (mỗi lá rút ngẫu nhiên 1 loại).")]
         [SerializeField] private CardData[] _deck;
-        [Tooltip("Số lá rút ở lượt Attack đầu tiên của mỗi người.")]
-        [SerializeField] private int _startingHand = 5;
         [Tooltip("Xác suất mỗi lá rút ra là lá Knight / Mage (50/50) thay vì lá phép.")]
         [SerializeField, Range(0f, 1f)] private float _attackerCardChance = 0.25f;
 
@@ -26,6 +24,7 @@ namespace GridBattle
         private const int RiftDuration = 3;
         private const int BombDuration = 3;
         private const int CloneDuration = 3;
+        private const int DecoyBlastHit = 2;
         private static readonly Color TrapColor = new(0.7f, 0.75f, 0.85f);
 
         private class Rift
@@ -53,7 +52,6 @@ namespace GridBattle
         private readonly List<Rift> _rifts = new();
         private readonly List<TornadoTrap> _traps = new();
         private readonly Dictionary<GridUnit, DizzyRing> _stunFx = new();
-        private readonly HashSet<Player> _openingDrawn = new();
         private readonly Dictionary<GridUnit, int> _bombDamage = new();
         private readonly List<(GridUnit unit, System.Func<Vector2Int, bool> area, Vector3 from)> _pendingThrows = new();
 
@@ -66,22 +64,34 @@ namespace GridBattle
         // shortcut: bộ bài vô hạn, rút ngẫu nhiên theo loại; khi có giới hạn số lá mỗi loại thì đổi sang list xáo + rút từ đầu.
         private void Draw(Player p, int count)
         {
+            var drawn = new List<object>();
             for (int i = 0; i < count; i++)
             {
+                if (HandCount(p) >= Player.MaxHand) break; // tay đầy: không rút thêm, lá còn lại bỏ qua
                 if (Random.value < _attackerCardChance)
                 {
-                    if (Random.value < 0.5f) p.KnightCards++;
+                    bool knight = Random.value < 0.5f;
+                    if (knight) p.KnightCards++;
                     else p.MageCards++;
+                    drawn.Add(knight ? UnitKind.Knight : UnitKind.Mage);
                 }
-                else if (_deck != null && _deck.Length > 0) p.Hand.Add(_deck[Random.Range(0, _deck.Length)]);
+                else if (_deck != null && _deck.Length > 0)
+                {
+                    CardData card = _deck[Random.Range(0, _deck.Length)];
+                    p.Hand.Add(card);
+                    drawn.Add(card);
+                }
             }
+            if (drawn.Count > 0) CardsDrawn?.Invoke(drawn);
         }
 
         // ---------------- Dùng bài ----------------
 
         /// <summary>Chỉ dùng trong phase Attack của chính mình, trước Confirm.</summary>
-        public bool CanPlayCard(CardData card) => card != null && Current == GamePhase.Attack && !IsHandingOver && !IsAnimating
-                                                 && CurrentPlayer != null && CurrentPlayer.Hand.Contains(card);
+        public bool CanPlayCard(CardData card) => card != null && Current == GamePhase.Attack && !IsHandingOver && !MustDraw && !IsAnimating
+                                                 && CurrentPlayer != null && CurrentPlayer.Hand.Contains(card)
+                                                 // Tay đầy thì không dùng Chest (dùng xong vẫn rút lại được 1 lá -> vượt luật "đủ 8 lá thì không rút nữa").
+                                                 && !(card.Type == CardType.Chest && HandCount(CurrentPlayer) >= Player.MaxHand);
 
         /// <summary>Bàn phải click khi dùng lá. null = cả 2 bàn (lá nhắm vào quân của mình: King ở bàn mình, attacker ở bàn đối thủ).</summary>
         public GridSystem CardBoard(CardData card) => card.Target switch
@@ -471,6 +481,24 @@ namespace GridBattle
             s.DecoyTurns = CloneDuration;
             CardFx.Clone(king.transform.position, decoy.transform.position);
             if (decoy.TryGetComponent(out UnitReactions r)) r.PlaySpawn();
+        }
+
+        /// <summary>King giả bị tấn công lần thứ DecoyBlastHit: nổ tung, attacker vừa đánh nó văng khỏi bàn (bị loại, Shield không chặn).</summary>
+        private void DecoyBlast(GridUnit decoy, GridUnit by, float delay)
+        {
+            Vector3 at = decoy.transform.position;
+            float radius = decoy.Grid.CellSize * 1.2f;
+            Report(CurrentPlayer, $"Clone at {decoy.Coord} exploded!");
+            Eliminate(by, at, delay);
+            decoy.Owner.Kings.Remove(decoy);
+            decoy.Grid.Remove(decoy);
+            DOVirtual.DelayedCall(delay, () =>
+            {
+                CardFx.Explosion(at, radius);
+                if (decoy == null) return;
+                if (decoy.TryGetComponent(out UnitReactions r)) r.Vanish();
+                else Destroy(decoy.gameObject);
+            });
         }
 
         private void ExpireDecoy(GridUnit decoy)

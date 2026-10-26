@@ -15,5 +15,5 @@ MonoBehaviour:
   Type: 3
   DisplayName: Chest
   Description: Draw 2 cards.
-  Art: {fileID: 0}
+  Art: {fileID: 21300000, guid: 0bb60f1a170c7604e9a2da8340f90f8d, type: 3}
   Tint: {r: 0.6, g: 0.4, b: 0.2, a: 1}

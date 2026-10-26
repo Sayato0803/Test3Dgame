@@ -21,5 +21,5 @@ MonoBehaviour:
 
     A King on the
     first cell is moved to the second.'
-  Art: {fileID: 0}
+  Art: {fileID: 21300000, guid: 46bcae80249c10646b64cfa879033071, type: 3}
   Tint: {r: 0.5, g: 0.25, b: 0.8, a: 1}

@@ -30,6 +30,8 @@ namespace GridBattle
         /// <summary>King giả (Clone): nhận damage như King nhưng không tính vào điều kiện thua.</summary>
         public bool IsDecoy;
         public int DecoyTurns;
+        /// <summary>Số lần King giả đã bị tấn công (mỗi attacker đánh trúng tính 1 lần).</summary>
+        public int DecoyHits;
 
         private Renderer[] _renderers;
 

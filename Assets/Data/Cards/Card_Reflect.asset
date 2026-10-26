@@ -20,5 +20,5 @@ MonoBehaviour:
     the attacker for 2 turns.
 
     Lasts until the enemy''s next battle.'
-  Art: {fileID: 0}
+  Art: {fileID: 21300000, guid: 10e0fca2bd1172e4baf51d78802779a9, type: 3}
   Tint: {r: 0.9, g: 0.7, b: 0.15, a: 1}

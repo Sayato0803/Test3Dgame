@@ -77,5 +77,5 @@ Code game nằm trong namespace `GridBattle`, ở `Assets/Scripts/`.
 - Bộ bài: chưa có cost, chưa giới hạn số lá mỗi loại, chưa giới hạn tay bài.
 - Bảng phân loại thẻ (`LUAT_GAME.md` mục 8) chưa được code dùng (dự định: màu viền lá, giới hạn theo nhóm).
 - Các điểm luật chờ xác nhận: `LUAT_GAME.md` mục 9.
-- Art: lá Scout còn in chữ "ONCE PER MATCH" (luật đã đổi thành 3 lần / trận), 9 lá phép chưa có art riêng.
+- Art: 9 lá phép đã có art riêng.
 - Chưa có: chơi với máy (AI), chơi online, lưu trận.

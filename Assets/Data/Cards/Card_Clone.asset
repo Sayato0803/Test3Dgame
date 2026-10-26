@@ -18,5 +18,5 @@ MonoBehaviour:
 
     A decoy with the
     same HP appears there (3 turns). Does not count for defeat.'
-  Art: {fileID: 0}
+  Art: {fileID: 21300000, guid: 0f7c7e512f5be4c469d8c266286514af, type: 3}
   Tint: {r: 0.75, g: 0.4, b: 0.65, a: 1}

@@ -40,8 +40,13 @@ namespace GridBattle
         /// <summary>Đang hiện màn che đổi người: chặn mọi thao tác.</summary>
         public bool IsHandingOver { get; private set; }
 
+        /// <summary>Đầu lượt: phải bấm Draw (DrawCard) trước, chưa làm được gì khác (đặt quân, dùng bài, Confirm).</summary>
+        public bool MustDraw { get; private set; }
+
         /// <summary>Phase / người chơi / số quân / kết quả battle thay đổi -> HUD và tay bài cập nhật.</summary>
         public event Action StateChanged;
+        /// <summary>Lá vừa rút (Draw / Chest) của CurrentPlayer: CardData hoặc UnitKind. Phát trước StateChanged -> tay bài chỉ chạy hoạt ảnh bốc cho các lá này.</summary>
+        public event Action<IReadOnlyList<object>> CardsDrawn;
         /// <summary>1 King trúng đòn (King, damage, delay giây trước khi hiệu ứng trúng đòn chạy) -> HUD hiện số damage.</summary>
         public event Action<GridUnit, int, float> KingHit;
         /// <summary>Đòn hạ King cuối cùng của đối thủ (King, delay tới lúc trúng) -> HUD chạy slow-mo kết liễu.</summary>
@@ -62,16 +67,23 @@ namespace GridBattle
         public int KingsPerPlayer => _kingsPerPlayer;
 
         /// <summary>Thẻ Trinh sát: mỗi trận ScoutPerMatch lần, mỗi lượt tối đa 1 lần.</summary>
-        private const int ScoutPerMatch = 3;
+        private const int ScoutPerMatch = 1;
         private readonly Dictionary<Player, int> _scoutUses = new();
         private readonly Dictionary<Player, int> _scoutTurn = new();
 
         private bool ScoutAvailable(Player p) =>
-            _scoutUses.GetValueOrDefault(p) < ScoutPerMatch && _scoutTurn.GetValueOrDefault(p, -1) != Turn;
+            ScoutInHand(p) && _scoutTurn.GetValueOrDefault(p, -1) != Turn;
+
+        /// <summary>Lá Scout nằm trên tay suốt trận (trừ Deploy) tới khi dùng hết ScoutPerMatch lần; chỉ dùng được theo ScoutAvailable.</summary>
+        private bool ScoutInHand(Player p) => Current != GamePhase.Deploy && _scoutUses.GetValueOrDefault(p) < ScoutPerMatch;
+
+        /// <summary>Số lá đang cầm, tính trên giới hạn Player.MaxHand: lá phép + Knight + Mage + Scout (khớp đúng số lá hiện trên tay).</summary>
+        public int HandCount(Player p) => p.Hand.Count + p.KnightCards + p.MageCards + (ScoutInHand(p) ? 1 : 0);
 
         private void Start()
         {
             if (_firstPlayer == null) _firstPlayer = _player1;
+            foreach (Player p in new[] { _player1, _player2 }) { p.KnightCards = 1; p.MageCards = 1; } // tay mở đầu
 
             // Observer: quân nào được đặt lần đầu thì ghi vào player đang tới lượt.
             _player1.Board.OnUnitPlaced += HandleUnitPlaced;
@@ -92,11 +104,9 @@ namespace GridBattle
         private void EnterPhase(GamePhase phase, Player player)
         {
             if (player != CurrentPlayer) IsHandingOver = true; // đổi người -> che màn hình trước
-            if (phase == GamePhase.Attack)
-            {
-                if (player == _firstPlayer) Turn++;
-                Draw(player, _openingDrawn.Add(player) ? _startingHand : 1); // lượt Attack đầu rút cả tay, sau đó +1
-            }
+            if (phase == GamePhase.Attack && player == _firstPlayer) Turn++;
+            // Lượt mới bắt đầu ở Setup; riêng lượt đầu của người đi trước thì vào thẳng Attack sau Deploy.
+            if (phase == GamePhase.Setup || (phase == GamePhase.Attack && Current == GamePhase.Deploy)) MustDraw = true;
             Current = phase;
             CurrentPlayer = player;
             bool lookAtOpponent = phase == GamePhase.Attack || phase == GamePhase.End;
@@ -116,6 +126,15 @@ namespace GridBattle
             IsHandingOver = false;
             if (_pendingCamera >= 0 && _placer != null) _placer.SwitchCamera(_pendingCamera);
             _pendingCamera = -1;
+            StateChanged?.Invoke();
+        }
+
+        /// <summary>Nút Draw: mỗi lượt rút đúng 1 lá, 1 lần. Tay đầy thì không rút được gì.</summary>
+        public void DrawCard()
+        {
+            if (!MustDraw || IsHandingOver || IsAnimating || CurrentPlayer == null) return;
+            MustDraw = false;
+            Draw(CurrentPlayer, 1);
             StateChanged?.Invoke();
         }
 
@@ -191,7 +210,13 @@ namespace GridBattle
             foreach (var h in hits)
             {
                 var stats = h.king.GetComponent<KingStats>();
-                if (h.a.Grid != defender.Board || h.a.StunTurns > 0 || stats.IsDead) continue; // bị loại / choáng giữa battle
+                if (h.a.Grid != defender.Board || h.a.StunTurns > 0 || stats.IsDead || !h.king.IsOnGrid) continue; // bị loại / choáng / King giả đã nổ
+                if (stats.IsDecoy && ++stats.DecoyHits >= DecoyBlastHit)
+                {
+                    DecoyBlast(h.king, h.a, _attackAnimTime);
+                    if (byKing.Remove(h.king, out KingHitResult gone)) results.Remove(gone);
+                    continue;
+                }
 
                 int damage = (h.inRange ? 1 : 0) + (h.squash ? 1 : 0) + h.a.DamageBoost;
                 damage = BlockHit(h.a, h.king, stats, damage, attacker);
@@ -214,6 +239,7 @@ namespace GridBattle
             // Damage của Bomb trên attacker cộng vào kết quả battle; King trúng bom bị thổi bay sau khi tính xong.
             foreach (var (king, bombDamage) in _bombDamage)
             {
+                if (!king.IsOnGrid) continue; // King giả đã nổ
                 if (!byKing.TryGetValue(king, out KingHitResult r))
                 {
                     r = new KingHitResult { king = king, stats = king.GetComponent<KingStats>() };
@@ -439,7 +465,7 @@ namespace GridBattle
 
         public bool CanSubmit()
         {
-            if (IsHandingOver || CurrentPlayer == null || IsAnimating) return false;
+            if (IsHandingOver || MustDraw || CurrentPlayer == null || IsAnimating) return false;
             if (_placer != null && _placer.IsDragging) return false;
 
             switch (Current)
@@ -459,7 +485,7 @@ namespace GridBattle
 
         public bool CanSpawn(UnitKind kind)
         {
-            if (IsHandingOver || CurrentPlayer == null || IsAnimating) return false;
+            if (IsHandingOver || MustDraw || CurrentPlayer == null || IsAnimating) return false;
 
             switch (Current)
             {
@@ -476,7 +502,7 @@ namespace GridBattle
 
         public bool CanPickUp(GridUnit unit)
         {
-            if (IsHandingOver || IsAnimating || unit.Owner != CurrentPlayer) return false;
+            if (IsHandingOver || MustDraw || IsAnimating || unit.Owner != CurrentPlayer) return false;
 
             switch (Current)
             {
@@ -551,13 +577,13 @@ namespace GridBattle
                 UnitKind.King => Current == GamePhase.Deploy ? _kingsPerPlayer - CurrentPlayer.Kings.Count : 0,
                 UnitKind.Knight => CurrentPlayer.KnightCards,
                 UnitKind.Mage => CurrentPlayer.MageCards,
-                _ => Current == GamePhase.Attack && ScoutAvailable(CurrentPlayer) ? 1 : 0
+                _ => ScoutInHand(CurrentPlayer) ? 1 : 0
             };
         }
 
         // ---------------- Thẻ Trinh sát ----------------
 
-        public bool CanScout() => Current == GamePhase.Attack && !IsHandingOver && !IsAnimating
+        public bool CanScout() => Current == GamePhase.Attack && !IsHandingOver && !MustDraw && !IsAnimating
                                   && CurrentPlayer != null && ScoutAvailable(CurrentPlayer);
 
         public bool CanScoutOn(GridSystem grid) => CurrentPlayer != null && grid == CurrentPlayer.Opponent.Board;
@@ -613,10 +639,12 @@ namespace GridBattle
 
         public string HintText => Hint();
 
-        private string Hint() => Current switch
+        private string Hint() => MustDraw ? "Press DRAW to start your turn" : Current switch
         {
             GamePhase.Deploy => $"Play King cards onto your board ({CurrentPlayer.Kings.Count}/{_kingsPerPlayer} Kings placed)",
             GamePhase.Setup => "Drag your Kings to new cells if you like, then Confirm",
+            GamePhase.Attack when HandCount(CurrentPlayer) >= Player.MaxHand =>
+                $"Hand is full ({Player.MaxHand}/{Player.MaxHand}): you can't draw more cards. Play cards, then Confirm",
             GamePhase.Attack => "Play Knight / Mage cards on the enemy board, play spell cards, then Confirm",
             GamePhase.End => "Check the results, then End Turn",
             _ => ""
