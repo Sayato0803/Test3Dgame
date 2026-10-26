@@ -40,6 +40,13 @@ Ký hiệu: ⚙️ = con số chỉnh được trong Inspector (không cần s�
 Luồng: Deploy P1 → Deploy P2 → Attack P1 → End P1 → Setup P2 → Attack P2 → End P2 → Setup P1 → …
 (Lượt đầu tiên của người đi trước không có Setup.)
 
+**Lượt dùng:** mỗi lượt (Setup + Attack của 1 người) có **2 lượt dùng**. Thanh hint hiện `Actions x/2`.
+- Mỗi **lá phép** dùng tốn **1**.
+- **Di chuyển quân** (dời / xoay King ở Setup, attacker ở Attack) tốn **1**, chỉ trừ **1 lần cho cả lượt**: đã trả rồi thì dời thêm quân khác không tốn nữa 📝.
+- Nhấc quân lên rồi thả lại đúng ô cũ, giữ hướng (hoặc huỷ bằng chuột phải / Esc) thì không tính là di chuyển.
+- Hết lượt dùng thì không dùng lá phép được nữa (bấm lá chỉ bị rung), và không nhấc quân lên được nếu lượt này chưa trả phí di chuyển.
+- **Không tốn** lượt dùng: đặt quân mới từ lá Knight / Mage, dùng Scout, dời King ở Deploy 📝.
+
 ## 4. Battle (khi bấm CONFIRM ở phase Attack)
 
 Thứ tự xử lý:
@@ -74,8 +81,8 @@ Các lá có hiệu lực tức thì (Chest, Healing, Clone) chạy ngay lúc d�
 ## 6. Rút bài
 
 - Deploy: tay bài chỉ có 2 lá King.
-- Đầu mỗi lượt (Setup; lượt đầu của người đi trước là Attack ngay sau Deploy) phải bấm nút **DRAW** trước, chưa bấm thì không đặt / dời quân, dùng bài hay Confirm được.
-- Mỗi lượt Draw **1 lá, 1 lần** (kể cả lượt đầu). Tay mở đầu: mỗi người có sẵn **1 Knight + 1 Mage** (+ lá Scout).
+- Đầu mỗi lượt (Setup; lượt đầu của người đi trước là Attack ngay sau Deploy) **tự rút 2 lá** ngay khi người chơi bấm qua màn che. Không có nút DRAW.
+- Tay mở đầu: mỗi người có sẵn **1 Knight + 1 Mage** (+ lá Scout).
 - Chỉ lá vừa rút (Draw / Chest) mới chạy hoạt ảnh bay vào tay; lá đã có sẵn hiện thẳng (kể cả sau màn che đổi người).
 - Tay bài hiện ở mọi phase của người đang tới lượt; bấm lá không dùng được lúc đó thì lá rung + nháy đỏ, không đánh được.
 - Mỗi lá rút ra có **25%** ⚙️ là lá quân (Knight hoặc Mage, 50/50), còn lại là 1 lá phép ngẫu nhiên trong danh sách `_deck` của `GameFlow` ⚙️.
@@ -85,7 +92,7 @@ Các lá có hiệu lực tức thì (Chest, Healing, Clone) chạy ngay lúc d�
 ## 7. Lá phép
 
 ### 7.1 Cách dùng
-- Chỉ dùng trong **phase Attack của mình**, trước CONFIRM.
+- Chỉ dùng trong **phase Attack của mình**, trước CONFIRM. Mỗi lá tốn 1 lượt dùng, tối đa **2 lá / lượt** (ít hơn nếu đã di chuyển quân, xem mục 3).
 - Click lá → click ô mục tiêu; chuột phải / Esc để huỷ (lá quay về tay). Ô không hợp lệ tô đỏ, không chọn được.
 - Battle Report chỉ ghi **tên lá** đã dùng, không ghi tọa độ (để không lộ vị trí King).
 
@@ -156,5 +163,5 @@ Tick `[x]` vào cột thẻ tác động lên. Một thẻ có thể thuộc nhi
 
 1. 📝 Shield trên attacker hết hạn sau battle kế tiếp **của chủ attacker** (attacker chủ yếu bị choáng / bị bom trong chính battle của mình).
 2. 📝 Damage 1 của Bomb trên attacker **không** bị Shield của King chặn (Shield chỉ chặn đòn đánh).
-3. Ảnh lá Scout vẫn in chữ "ONCE PER MATCH". Mô tả khi chuột phải đã đổi thành "3 times per match, once per turn", còn ảnh thì cần vẽ lại.
+3. 📝 Di chuyển quân tốn 1 lượt dùng **cho cả lượt** (không phải mỗi quân 1). Muốn tính mỗi lần dời 1 quân là 1 lượt dùng thì báo mình.
 4. Lá Knight / Mage dùng chung ảnh với lá quân cũ; tay bài hiện số lá theo số lần rút được.

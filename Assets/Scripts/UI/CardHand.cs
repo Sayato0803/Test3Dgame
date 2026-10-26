@@ -26,8 +26,6 @@ namespace GridBattle
         [SerializeField] private float _previewFade = 0.2f;
         [Tooltip("Số lá đang cầm / tối đa (vd 3/8). Đỏ khi tay đầy.")]
         [SerializeField] private Text _countLabel;
-        [Tooltip("Nút Draw đầu lượt (OnClick -> Phases.DrawCard); chỉ hiện khi Phases.MustDraw.")]
-        [SerializeField] private Button _drawButton;
 
         [Header("Hình lá bài")]
         [SerializeField] private Sprite _kingSprite;
@@ -146,9 +144,6 @@ namespace GridBattle
                 _cards.Add(c);
             }
             foreach (CardView c in pool) c.Discard();
-
-            if (_drawButton != null)
-                _drawButton.gameObject.SetActive(_phases != null && _phases.MustDraw && !_phases.IsHandingOver);
 
             if (_countLabel != null)
             {

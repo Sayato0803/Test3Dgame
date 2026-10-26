@@ -49,6 +49,17 @@ namespace GridBattle
         [SerializeField] private Slider _hpBarPrefab;
         [SerializeField] private Text _damageTextPrefab;
 
+        [Tooltip("Bảng phím tắt nhỏ ở mép phải màn hình (rich text, phím tô vàng). F1 ẩn cùng HUD.")]
+        [SerializeField, TextArea(4, 12)] private string _shortcuts =
+            "<color=#FFD54A>1 - 5</color>  Switch camera\n" +
+            "<color=#FFD54A>Wheel</color>  Zoom\n" +
+            "<color=#FFD54A>R / Wheel</color>  Rotate held unit\n" +
+            "<color=#FFD54A>Right-click</color>  Cancel\n" +
+            "<color=#FFD54A>Enter</color>  Confirm\n" +
+            "<color=#FFD54A>Tab</color>  Battle Report\n" +
+            "<color=#FFD54A>F1</color>  Hide HUD\n" +
+            "<color=#FFD54A>Esc</color>  Pause";
+
         [Tooltip("Giữ Tab: Battle Report hiện chừng này dòng mới nhất.")]
         [SerializeField] private int _reportLines = 8;
 
@@ -106,6 +117,38 @@ namespace GridBattle
             _tutorial.Closed += () => UiFactory.Show(_pause, true, _fadeDuration);
             _tapPrompt.DOFade(0.25f, 0.8f).SetLoops(-1, LoopType.Yoyo).SetUpdate(true);
             _winBadge.DOScale(1.06f, 0.5f).SetLoops(-1, LoopType.Yoyo).SetEase(Ease.InOutSine);
+            BuildShortcuts();
+        }
+
+        // shortcut: dựng lúc chạy vì không mở được scene để đặt sẵn; muốn chỉnh tay trong Editor thì chuyển thành object trong HudCanvas.
+        private void BuildShortcuts()
+        {
+            if (string.IsNullOrEmpty(_shortcuts)) return;
+            // Nền tối mờ ôm vừa chữ (layout tự co theo nội dung + lề) để chữ không lẫn vào cảnh 3D phía sau.
+            var bg = new GameObject("Shortcuts", typeof(RectTransform)).AddComponent<Image>();
+            bg.transform.SetParent(_hint.canvas.rootCanvas.transform, false);
+            bg.transform.SetAsFirstSibling(); // nằm dưới mọi panel khác (màn che, pause...)
+            bg.color = new Color(0.05f, 0.05f, 0.1f, 0.6f);
+            bg.raycastTarget = false;
+            RectTransform rt = bg.rectTransform;
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(1f, 0.5f);
+            rt.anchoredPosition = new Vector2(-16f, 40f);
+            var layout = bg.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(14, 14, 10, 10);
+            var fit = bg.gameObject.AddComponent<ContentSizeFitter>();
+            fit.horizontalFit = fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var t = new GameObject("Text", typeof(RectTransform)).AddComponent<Text>();
+            t.transform.SetParent(bg.transform, false);
+            t.font = _hint.font;
+            t.fontSize = 18;
+            t.lineSpacing = 1.2f;
+            t.alignment = TextAnchor.MiddleRight;
+            t.horizontalOverflow = HorizontalWrapMode.Overflow;
+            t.color = Color.white;
+            t.raycastTarget = false;
+            t.text = _shortcuts;
+            t.gameObject.AddComponent<TextOutline8>(); // viền đen kín 8 hướng + bóng đổ nhẹ
         }
 
         private void OnEnable()

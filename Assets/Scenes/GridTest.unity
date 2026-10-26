@@ -28574,7 +28574,7 @@ MonoBehaviour:
   _mageText: 'Strikes 4 cells
 
     in front of it'
-  _scoutText: '3 times per match, once per turn:
+  _scoutText: 'Once per match:
 
     reveal enemy Kings in a 2x2
     area'

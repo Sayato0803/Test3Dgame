@@ -21,6 +21,8 @@ Khung kiểu cartoon (bảng màu Resurrect 64, mẫu `Resources/GUI/ui_buttons/
 
 **Tutorial:** prefab `Assets/Prefab/UI/TutorialPanel.prefab` (nút TUTORIAL ở Main Menu và menu Pause). Mỗi dòng là object `Row` gồm `Keys` (icon phím / chuột lấy từ `Art/InputIcons/.../Outline/PNG_4x`) + `Label`; thêm dòng = Duplicate 1 `Row` rồi đổi sprite và chữ.
 
+**Bảng phím tắt** (mép phải màn hình, luôn hiện trong trận): chữ nằm ở ô `Shortcuts` của `GameHud` (rich text, phím tô `<color=#FFD54A>`), object được dựng lúc chạy trong canvas của HUD. Thêm phím tắt mới thì thêm 1 dòng vào ô này.
+
 **F1** trong trận ẩn / hiện toàn bộ HUD + tay bài (danh sách canvas ở ô `Hide On F1` của `GameHud`). Khi có King bị hạ, các canvas này cũng tự ẩn tới hết cảnh kết liễu.
 
 **Nút chữ** dùng chung 1 kiểu: nền `btn_blank_*` (xanh lá = hành động chính, xanh dương = phụ, cam = quay lại, đỏ = thoát), chữ trắng viền tím than. Mỗi nút có 4 trạng thái qua Button → Transition `Sprite Swap`: `_hover` (Highlighted), `_focus` (Selected), `_pressed` (Pressed), `_disabled`. Khoảng cách chữ tới viền nằm ở Rect Transform của object con `Text` (Left/Right 28, Bottom 14, Top 8); chữ dài tự thu nhỏ nhờ `Best Fit` (Max Size = cỡ chữ gốc).

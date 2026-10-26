@@ -40,8 +40,14 @@ namespace GridBattle
         /// <summary>Đang hiện màn che đổi người: chặn mọi thao tác.</summary>
         public bool IsHandingOver { get; private set; }
 
-        /// <summary>Đầu lượt: phải bấm Draw (DrawCard) trước, chưa làm được gì khác (đặt quân, dùng bài, Confirm).</summary>
-        public bool MustDraw { get; private set; }
+        /// <summary>Đầu mỗi lượt tự rút chừng này lá.</summary>
+        private const int DrawPerTurn = 2;
+        /// <summary>Lượt dùng mỗi lượt: mỗi lá phép tốn 1; di chuyển quân tốn 1 (1 lần cho cả lượt, dời thêm quân khác không tốn nữa).</summary>
+        public const int ActionsPerTurn = 2;
+        public int ActionsLeft { get; private set; }
+        private bool _movePaid;
+        private bool _drawPending;
+        private bool CanMove => _movePaid || ActionsLeft > 0;
 
         /// <summary>Phase / người chơi / số quân / kết quả battle thay đổi -> HUD và tay bài cập nhật.</summary>
         public event Action StateChanged;
@@ -106,9 +112,15 @@ namespace GridBattle
             if (player != CurrentPlayer) IsHandingOver = true; // đổi người -> che màn hình trước
             if (phase == GamePhase.Attack && player == _firstPlayer) Turn++;
             // Lượt mới bắt đầu ở Setup; riêng lượt đầu của người đi trước thì vào thẳng Attack sau Deploy.
-            if (phase == GamePhase.Setup || (phase == GamePhase.Attack && Current == GamePhase.Deploy)) MustDraw = true;
+            bool newTurn = phase == GamePhase.Setup || (phase == GamePhase.Attack && Current == GamePhase.Deploy);
             Current = phase;
             CurrentPlayer = player;
+            if (newTurn)
+            {
+                ActionsLeft = ActionsPerTurn;
+                _movePaid = false;
+                _drawPending = true;
+            }
             bool lookAtOpponent = phase == GamePhase.Attack || phase == GamePhase.End;
             int cam = lookAtOpponent ? player.AttackCameraIndex : player.CameraIndex;
             // Đang che màn hình: camera bay sau khi người chơi mới bấm bắt đầu (để họ thấy camera lượn sang góc của mình).
@@ -116,6 +128,7 @@ namespace GridBattle
             else if (_placer != null) _placer.SwitchCamera(cam);
             RefreshKingVisibility();
             Debug.Log($"[Phase] {player.DisplayName} - {phase}");
+            if (!IsHandingOver) DrawPending();
             StateChanged?.Invoke();
         }
 
@@ -126,16 +139,16 @@ namespace GridBattle
             IsHandingOver = false;
             if (_pendingCamera >= 0 && _placer != null) _placer.SwitchCamera(_pendingCamera);
             _pendingCamera = -1;
+            DrawPending();
             StateChanged?.Invoke();
         }
 
-        /// <summary>Nút Draw: mỗi lượt rút đúng 1 lá, 1 lần. Tay đầy thì không rút được gì.</summary>
-        public void DrawCard()
+        /// <summary>Rút bài đầu lượt, chỉ khi đã hết màn che để người chơi thấy hoạt ảnh bốc bài. Tay đầy thì phần dư bị bỏ.</summary>
+        private void DrawPending()
         {
-            if (!MustDraw || IsHandingOver || IsAnimating || CurrentPlayer == null) return;
-            MustDraw = false;
-            Draw(CurrentPlayer, 1);
-            StateChanged?.Invoke();
+            if (!_drawPending) return;
+            _drawPending = false;
+            Draw(CurrentPlayer, DrawPerTurn);
         }
 
         public void Submit()
@@ -465,7 +478,7 @@ namespace GridBattle
 
         public bool CanSubmit()
         {
-            if (IsHandingOver || MustDraw || CurrentPlayer == null || IsAnimating) return false;
+            if (IsHandingOver || CurrentPlayer == null || IsAnimating) return false;
             if (_placer != null && _placer.IsDragging) return false;
 
             switch (Current)
@@ -485,7 +498,7 @@ namespace GridBattle
 
         public bool CanSpawn(UnitKind kind)
         {
-            if (IsHandingOver || MustDraw || CurrentPlayer == null || IsAnimating) return false;
+            if (IsHandingOver || CurrentPlayer == null || IsAnimating) return false;
 
             switch (Current)
             {
@@ -502,15 +515,16 @@ namespace GridBattle
 
         public bool CanPickUp(GridUnit unit)
         {
-            if (IsHandingOver || MustDraw || IsAnimating || unit.Owner != CurrentPlayer) return false;
+            if (IsHandingOver || IsAnimating || unit.Owner != CurrentPlayer) return false;
 
             switch (Current)
             {
                 case GamePhase.Deploy:
-                case GamePhase.Setup:
                     return unit.Kind == UnitKind.King;
+                case GamePhase.Setup:
+                    return unit.Kind == UnitKind.King && CanMove;
                 case GamePhase.Attack:
-                    return unit.Kind != UnitKind.King && unit.StunTurns == 0;
+                    return unit.Kind != UnitKind.King && unit.StunTurns == 0 && CanMove;
                 default:
                     return false;
             }
@@ -541,6 +555,12 @@ namespace GridBattle
 
             if (unit.Owner != null)
             {
+                // Người chơi dời quân trong lượt: tốn 1 lượt dùng, chỉ 1 lần cho cả lượt.
+                if (!_effectMove && !_movePaid && (Current == GamePhase.Setup || Current == GamePhase.Attack))
+                {
+                    _movePaid = true;
+                    ActionsLeft--;
+                }
                 // Quân cũ đổi chỗ. Chủ quân đổi chỗ King -> King ẩn lại với đối thủ.
                 // Chủ quân dời King đã lộ sang ô khác -> ẩn lại (chui xuống). Đặt lại đúng ô cũ thì vẫn lộ.
                 if (unit.Kind == UnitKind.King)
@@ -583,7 +603,7 @@ namespace GridBattle
 
         // ---------------- Thẻ Trinh sát ----------------
 
-        public bool CanScout() => Current == GamePhase.Attack && !IsHandingOver && !MustDraw && !IsAnimating
+        public bool CanScout() => Current == GamePhase.Attack && !IsHandingOver && !IsAnimating
                                   && CurrentPlayer != null && ScoutAvailable(CurrentPlayer);
 
         public bool CanScoutOn(GridSystem grid) => CurrentPlayer != null && grid == CurrentPlayer.Opponent.Board;
@@ -639,15 +659,19 @@ namespace GridBattle
 
         public string HintText => Hint();
 
-        private string Hint() => MustDraw ? "Press DRAW to start your turn" : Current switch
+        private string Hint()
         {
-            GamePhase.Deploy => $"Play King cards onto your board ({CurrentPlayer.Kings.Count}/{_kingsPerPlayer} Kings placed)",
-            GamePhase.Setup => "Drag your Kings to new cells if you like, then Confirm",
-            GamePhase.Attack when HandCount(CurrentPlayer) >= Player.MaxHand =>
-                $"Hand is full ({Player.MaxHand}/{Player.MaxHand}): you can't draw more cards. Play cards, then Confirm",
-            GamePhase.Attack => "Play Knight / Mage cards on the enemy board, play spell cards, then Confirm",
-            GamePhase.End => "Check the results, then End Turn",
-            _ => ""
-        };
+            string actions = $"  |  Actions {ActionsLeft}/{ActionsPerTurn} (spell = 1, moving units = 1)";
+            return Current switch
+            {
+                GamePhase.Deploy => $"Play King cards onto your board ({CurrentPlayer.Kings.Count}/{_kingsPerPlayer} Kings placed)",
+                GamePhase.Setup => "Drag your Kings to new cells if you like, then Confirm" + actions,
+                GamePhase.Attack when HandCount(CurrentPlayer) >= Player.MaxHand =>
+                    $"Hand is full ({Player.MaxHand}/{Player.MaxHand}). Play cards, then Confirm" + actions,
+                GamePhase.Attack => "Play Knight / Mage and spell cards, then Confirm" + actions,
+                GamePhase.End => "Check the results, then End Turn",
+                _ => ""
+            };
+        }
     }
 }

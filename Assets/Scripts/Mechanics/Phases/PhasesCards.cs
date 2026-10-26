@@ -87,8 +87,8 @@ namespace GridBattle
 
         // ---------------- Dùng bài ----------------
 
-        /// <summary>Chỉ dùng trong phase Attack của chính mình, trước Confirm.</summary>
-        public bool CanPlayCard(CardData card) => card != null && Current == GamePhase.Attack && !IsHandingOver && !MustDraw && !IsAnimating
+        /// <summary>Chỉ dùng trong phase Attack của chính mình, trước Confirm, khi còn lượt dùng.</summary>
+        public bool CanPlayCard(CardData card) => card != null && Current == GamePhase.Attack && !IsHandingOver && ActionsLeft > 0 && !IsAnimating
                                                  && CurrentPlayer != null && CurrentPlayer.Hand.Contains(card)
                                                  // Tay đầy thì không dùng Chest (dùng xong vẫn rút lại được 1 lá -> vượt luật "đủ 8 lá thì không rút nữa").
                                                  && !(card.Type == CardType.Chest && HandCount(CurrentPlayer) >= Player.MaxHand);
@@ -159,6 +159,7 @@ namespace GridBattle
             if (picks.Count > 1 && !CanTarget(card, grid, picks[1], picks[0])) return false;
 
             CurrentPlayer.Hand.Remove(card);
+            ActionsLeft--;
             // Không ghi toạ độ: Battle Report ai cũng xem được, ghi ô King là lộ vị trí.
             Report(CurrentPlayer, $"#{NextEvent()} played {card.DisplayName}");
             GridUnit target = picks.Count > 0 ? OwnUnitAt(grid, grid.GetCell(picks[0])) : null;

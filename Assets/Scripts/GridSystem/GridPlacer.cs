@@ -43,6 +43,7 @@ namespace GridBattle
 
         private GridUnit _dragging;
         private bool _draggingNew;
+        private Quaternion _dragStartRotation;
         private bool _scouting;
         private CardData _card;
         private readonly List<Vector2Int> _picks = new();
@@ -236,6 +237,12 @@ namespace GridBattle
             if (valid && _cameraIndex != _overViewCam)
             {
                 GridUnit unit = _dragging;
+                // Thả lại đúng ô cũ, giữ hướng (vd chỉ click vào quân) = không dời: không tốn lượt dùng, giữ event counter.
+                if (!_draggingNew && grid == unit.Grid && coord == unit.Coord && unit.transform.rotation == _dragStartRotation)
+                {
+                    CancelDrag();
+                    return;
+                }
                 float before = unit.transform.position.y;
                 _dragging = null; // trước Place: listener của OnUnitPlaced thấy IsDragging = false
                 grid.Place(unit, coord);
@@ -249,6 +256,7 @@ namespace GridBattle
         {
             _dragging = unit;
             _draggingNew = isNew;
+            _dragStartRotation = unit.transform.rotation;
             _spawnTime = Time.time;
             Reactions(unit)?.BeginHeld();
             OnDragStarted?.Invoke(unit);
